@@ -1,8 +1,11 @@
+import json
+import boto3
 import six
 from six import with_metaclass
 from valley.declarative import DeclaredVars as DV, \
     DeclarativeVariablesMetaclass as DVM
 from valley.schema import BaseSchema
+from datetime import datetime
 
 from .properties import BaseProperty
 from .query import QueryManager
@@ -29,9 +32,10 @@ class BaseDocument(BaseSchema):
         if '_id' in self._data:
             self.set_pk(self._data['_id'])
         self._index_change_list = []
+        self._s3 = boto3.resource('s3')
 
     def __repr__(self):
-        return '<{class_name}: {uni}:{id} >'.format(
+        return '<{class_name}: {uni}:{id}>'.format(
             class_name=self.__class__.__name__, uni=self.__unicode__(),
             id=self.pk)
 
@@ -117,6 +121,28 @@ class BaseDocument(BaseSchema):
     def save(self):
         self._db.save(self)
 
+    @classmethod
+    def backup(cls, bucket_or_file):
+        DocumentEncoder().encode(StreamArray(cls))
+        json.dump(StreamArray(cls), open(bucket_or_file, 'w+'), cls=DocumentEncoder, indent=4)
+
+    @classmethod
+    def restore(cls, bucket_or_file, flush=False, replace=False):
+        backup = None
+        if flush:
+            cls().flush_db()
+        if bucket_or_file.startswith('s3://'):
+            s3 = boto3.resource('s3')
+            backup = s3.Object(bucket_or_file).get()['Body']
+        else:
+            import pdb
+            #pdb.set_trace()
+            backup = open(bucket_or_file, 'r')
+
+        jbackup = json.load(backup)
+        #cls.do
+
+
 
     class Meta:
         use_db = 'default'
@@ -128,3 +154,40 @@ class Document(with_metaclass(DeclarativeVariablesMetaclass, BaseDocument)):
     @classmethod
     def get_db(cls):
         return cls.Meta.handler.get_db(cls.Meta.use_db)
+
+
+class StreamArray(list):
+    def __init__(self, cls):
+        self.cls = cls
+
+    def __iter__(self):
+        return self.cls.all()
+
+    def __len__(self):
+        return 1
+
+
+class DocumentEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, Document):
+            return o._doc
+        elif isinstance(o, datetime):
+            return o.isoformat()
+
+
+class DocumentDecoder(json.JSONDecoder):
+    def __init__(self, *args, **kargs):
+
+    def parse_string(self, d):
+        import pdb
+        pdb.set_trace()
+        if '__type__' not in d:
+            return d
+
+        type = d.pop('__type__')
+        try:
+            dateobj = datetime(**d)
+            return dateobj
+        except:
+            d['__type__'] = type
+            return d

@@ -288,6 +288,7 @@ class DynamoTestCase(KevTestCase):
     doc_class = DynamoTestDocumentSlug
 
     def setUp(self):
+        self.doc_class().flush_db()
         self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.2,
                                  email='goo@sons.com', city="Durham")
         self.t1.save()
@@ -341,6 +342,14 @@ class DynamoTestCase(KevTestCase):
         self.assertEqual(113, len(list(qs)))
         qs = self.doc_class.objects().filter({'city': 'Durham'})
         self.assertEqual(112, qs.count())
+
+    # def test_or_condition(self):
+    #     obj = self.doc_class.objects().filter({'city': 'Durham'})
+
+    def test_backup(self):
+        self.doc_class.backup('backup.json')
+        self.doc_class.restore('backup.json', flush=True)
+
 
 
 if __name__ == '__main__':
