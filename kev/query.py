@@ -98,6 +98,9 @@ class QuerySet(QuerySetMixin):
     def filter(self, q):
         return QuerySet(self._doc_class, q, self.q)
 
+    def _or(self, q):
+        return QuerySet(self._doc_class, q, self.q)
+
     def get(self, q):
         qs = QuerySet(self._doc_class, q, self.q)
         if len(qs) > 1:
@@ -120,3 +123,4 @@ class QueryManager(object):
 
         self.filter = QuerySet(self._doc_class).filter
         self.get = QuerySet(self._doc_class).get
+        self._or = QuerySet(self._doc_class)._or

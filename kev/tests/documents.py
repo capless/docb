@@ -288,6 +288,7 @@ class DynamoTestCase(KevTestCase):
     doc_class = DynamoTestDocumentSlug
 
     def setUp(self):
+        self.doc_class().flush_db()
         self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.2,
                                  email='goo@sons.com', city="Durham")
         self.t1.save()
@@ -333,14 +334,24 @@ class DynamoTestCase(KevTestCase):
         self.assertEqual(self.t1.name, qs[0].name)
 
     def test_more_than_hundred_objects(self):
-        for i in range(110):
+        count = 4630
+        for i in range(count):
             doc = self.doc_class(name='Object_{0}'.format(i), slug='object-{0}'.format(i), gpa=4.6,
                                  email='object_{0}@ymca.com'.format(i), city='Durham')
             doc.save()
         qs = self.doc_class.all()
-        self.assertEqual(113, len(list(qs)))
+        import pdb
+        #pdb.set_trace()
+        self.assertEqual(count + 3, len(list(qs)))
         qs = self.doc_class.objects().filter({'city': 'Durham'})
-        self.assertEqual(112, qs.count())
+        self.assertEqual(count + 2, qs.count())
+
+    # def test_or_condition(self):
+    #     import pdb
+    #     #pdb.set_trace()
+    #     qs = self.doc_class.objects()._or({'city': 'Durham'})._or({'city': 'Charlotte'})
+    #     self.assertEqual(3, qs.count())
+
 
 
 if __name__ == '__main__':
