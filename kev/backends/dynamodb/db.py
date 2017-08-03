@@ -80,9 +80,9 @@ class DynamoDB(DocDB):
                 kwargs.update({'ExclusiveStartKey': response['LastEvaluatedKey']})
 
     # Indexing Methods
-    def get_doc_list(self, filters_list, doc_class):
+    def get_doc_list(self, filters_list, sorting_param, doc_class):
         result = []
-        query_params = self.parse_filters(filters_list, doc_class)
+        query_params = self.parse_filters(filters_list, sorting_param, doc_class)
         response = self._indexer.query(**query_params)
         result = response['Items']
         while 'LastEvaluatedKey' in response:
@@ -91,7 +91,7 @@ class DynamoDB(DocDB):
             result.extend(response['Items'])
         return result
 
-    def parse_filters(self, filters, doc_class):
+    def parse_filters(self, filters, sorting_param, doc_class):
         index_name = None
         filter_expression_list = []
         query_params = {}
@@ -112,7 +112,7 @@ class DynamoDB(DocDB):
             query_params['IndexName'] = index_name
         return query_params
 
-    def evaluate(self, filters_list, doc_class):
-         docs_list = self.get_doc_list(filters_list, doc_class)
+    def evaluate(self, filters_list, sorting_param, doc_class):
+         docs_list = self.get_doc_list(filters_list, sorting_param, doc_class)
          for doc in docs_list:
              yield doc_class(**doc)

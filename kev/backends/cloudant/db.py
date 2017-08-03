@@ -48,20 +48,24 @@ class CloudantDB(DocDB):
             document.delete()
 
     # Indexing Methods
-    def get_doc_list(self, filters_list):
-        query_params = self.parse_filters(filters_list)
+    def get_doc_list(self, filters_list, sorting_param):
+        query_params = self.parse_filters(filters_list, sorting_param)
         response = Query(self._db, **query_params)
         return response()['docs']
 
-    def parse_filters(self, filters):
+    def parse_filters(self, filters, sorting_param):
         query_params = {'selector': {}}
         for filter in filters:
             prop_name, prop_value = filter.split(':')[3:5]
             query_params['selector'].update({prop_name: prop_value})
+        if sorting_param:
+            query_params['sort'] = []
+            for param in sorting_param:
+                query_params['sort'].append(param.to_cloudant())
         return query_params
 
-    def evaluate(self, filters_list, doc_class):
-        docs_list = self.get_doc_list(filters_list)
+    def evaluate(self, filters_list, sorting_param, doc_class):
+        docs_list = self.get_doc_list(filters_list, sorting_param)
         for doc in docs_list:
             for key in doc.keys():
                 if key.startswith(self.special_character):

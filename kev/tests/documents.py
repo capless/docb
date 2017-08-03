@@ -619,6 +619,20 @@ class CloudantTestCase(KevTestCase):
         with self.assertRaises(AttributeError):
             list(self.doc_class.all(skip=-1))
 
+    def test_sorting(self):
+        # sorting requires index
+        from cloudant.database import CloudantDatabase
+        cloudant_db = self.doc_class.get_db()
+        db = CloudantDatabase(cloudant_db._client, cloudant_db.table)
+        db.create_query_index(fields=['name'])
+        qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('name')
+        self.assertEqual(2, qs.count())
+        self.assertEqual(qs[0].name, 'Goo and Sons')
+        self.assertEqual(qs[1].name, 'Lakewoood YMCA')
+        qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('name', reverse=True)
+        self.assertEqual(qs[0].name, 'Lakewoood YMCA')
+        self.assertEqual(qs[1].name, 'Goo and Sons')
+
 
 if __name__ == '__main__':
     unittest.main()

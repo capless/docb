@@ -32,15 +32,20 @@ def combine_dicts(a, b, op=combine_list):
 class QuerySetMixin(object):
     query_type = None
 
-    def __init__(self, doc_class, q=None, parent_q=None):
+    def __init__(self, doc_class, q=None, parent_q=None, sorting_p=None,
+                 parent_sorting_p=None):
         self.parent_q = parent_q
+        self.parent_sorting_p = parent_sorting_p
         self._result_cache = None
         self._doc_class = doc_class
         self.q = q
+        self.sorting_p = [sorting_p] if sorting_p else []
         self.evaluated = False
         self._db = self._doc_class.get_db()
         if q and parent_q:
             self.q = self.combine_qs()
+        if sorting_p and parent_sorting_p:
+            self.sorting_p = combine_list(self.sorting_p, self.parent_sorting_p)
 
     def combine_qs(self):
         return combine_dicts(self.parent_q, self.q)
@@ -98,6 +103,10 @@ class QuerySet(QuerySetMixin):
     def filter(self, q):
         return QuerySet(self._doc_class, q, self.q)
 
+    def sort_by(self, key, reverse=False):
+        sorting_p = SortingParam(key, reverse)
+        return QuerySet(self._doc_class, self.q, None, sorting_p, self.sorting_p)
+
     def get(self, q):
         qs = QuerySet(self._doc_class, q, self.q)
         if len(qs) > 1:
@@ -110,7 +119,8 @@ class QuerySet(QuerySetMixin):
 
     def evaluate(self):
         filters_list = self.prepare_filters()
-        return self._doc_class.get_db().evaluate(filters_list, self._doc_class)
+        return self._doc_class.get_db().evaluate(filters_list, self.sorting_p,
+                                                 self._doc_class)
 
 
 class QueryManager(object):
@@ -120,3 +130,17 @@ class QueryManager(object):
 
         self.filter = QuerySet(self._doc_class).filter
         self.get = QuerySet(self._doc_class).get
+        self.sort_by = QuerySet(self._doc_class).sort_by
+
+
+class SortingParam(object):
+
+    def __init__(self, key, reverse=False):
+        self.key = key
+        self.reverse = reverse
+
+    def __repr__(self):
+        return "key=%s, reverse=%s" % (self.key, self.reverse)
+
+    def to_cloudant(self):
+        return {self.key: 'desc' if self.reverse else 'asc'}
