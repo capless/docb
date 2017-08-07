@@ -91,7 +91,7 @@ class DynamoDB(DocDB):
             result.extend(response['Items'])
         return result
 
-    def parse_filters(self, filters, sorting_param, doc_class):
+    def parse_filters(self, filters, sortingp_list, doc_class):
         index_name = None
         filter_expression_list = []
         query_params = {}
