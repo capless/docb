@@ -5,6 +5,7 @@ import datetime
 import time
 
 from botocore.exceptions import ClientError
+from requests.exceptions import HTTPError
 from envs import env
 
 from kev import (Document,CharProperty,DateTimeProperty,
@@ -620,18 +621,36 @@ class CloudantTestCase(KevTestCase):
             list(self.doc_class.all(skip=-1))
 
     def test_sorting(self):
-        # sorting requires index
         from cloudant.database import CloudantDatabase
         cloudant_db = self.doc_class.get_db()
         db = CloudantDatabase(cloudant_db._client, cloudant_db.table)
-        db.create_query_index(fields=['name'])
-        qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('name')
+        db.create_query_index(fields=['city', 'name'])
+
+        # At least one of the sort fields should be included in the selector.
+        # That's why we are sorting on the 'city' and 'name' both.
+        # https://docs.cloudant.com/cloudant_query.html#sort-syntax
+        qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('name').sort_by('city')
         self.assertEqual(2, qs.count())
         self.assertEqual(qs[0].name, 'Goo and Sons')
         self.assertEqual(qs[1].name, 'Lakewoood YMCA')
-        qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('name', reverse=True)
+        qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('name', reverse=True)\
+                                                                .sort_by('city', reverse=True)
         self.assertEqual(qs[0].name, 'Lakewoood YMCA')
         self.assertEqual(qs[1].name, 'Goo and Sons')
+        db.create_query_index(fields=['city', 'email'])
+        qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('email').sort_by('city')
+        self.assertEqual(qs[0].email, 'goo@sons.com')
+        self.assertEqual(qs[1].email, 'lakewood@ymca.com')
+        qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('email', reverse=True)\
+                                                                .sort_by('city', reverse=True)
+        self.assertEqual(qs[0].email, 'lakewood@ymca.com')
+        self.assertEqual(qs[1].email, 'goo@sons.com')
+
+        # Sorts currently only support a single direction for all fields
+        with self.assertRaises(HTTPError):
+            qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('email', reverse=True) \
+                .sort_by('city')
+            qs.count()
 
 
 if __name__ == '__main__':
