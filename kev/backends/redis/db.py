@@ -16,7 +16,6 @@ class RedisDB(DocDB):
 
 
     # CRUD Operations
-
     def save(self, doc_obj):
         doc_obj, doc = self._save(doc_obj)
         pipe = self._db.pipeline()
@@ -56,7 +55,6 @@ class RedisDB(DocDB):
             yield cls(**{k.decode('utf-8'): v.decode('utf-8') for k, v in doc.items()})
 
     def get(self, doc_obj, doc_id):
-
         doc = self._db.hgetall(doc_obj.get_doc_id(doc_id))
         if len(list(doc.keys())) == 0:
             raise DocNotFoundError
@@ -67,7 +65,6 @@ class RedisDB(DocDB):
         self._db.flushdb()
 
     # Indexing Methods
-
     def add_to_model_set(self, doc_obj, pipeline):
         pipeline.sadd(
             '{0}:all'.format(
@@ -93,12 +90,11 @@ class RedisDB(DocDB):
             index_value = doc.get(prop)
             if index_value:
                 pipeline.sadd(doc_obj.get_index_name(prop, index_value),
-                              doc_obj._id
-                              )
+                              doc_obj._id)
         return pipeline
 
     def evaluate(self, filters_list, sortingp_list, doc_class):
-        id_list = self.get_id_list(filters_list)
+        id_list = self.get_id_list(filters_list, sortingp_list, doc_class)
         pipe = self._db.pipeline()
         for id in id_list:
             pipe.hgetall(id)

@@ -5,6 +5,7 @@ import datetime
 
 from valley.exceptions import ValidationException
 from kev.utils import get_doc_type
+from kev.properties import IntegerProperty, FloatProperty, BooleanProperty
 
 
 class DocDB(object):
@@ -77,10 +78,22 @@ class DocDB(object):
             doc['_id'] = doc_obj._id
         return (doc_obj, doc)
 
-    def get_id_list(self, filters_list):
+    def get_id_list(self, filters_list, sortingp_list, doc_class):
         l = self.parse_filters(filters_list)
         if len(l) == 1:
-            return self._indexer.smembers(l[0])
+            if len(sortingp_list) == 1:
+                sp = sortingp_list[0]
+                alphabetical = True
+                prop = doc_class._base_properties.get(sp.key, None)
+                if prop in [FloatProperty, IntegerProperty, BooleanProperty]:
+                    alphabetical = False
+                elif prop is None:
+                    raise ValueError("Field '{0}' doesn't exists in a document".format(sp.key))
+                return self._indexer.sort(l[0], alpha=alphabetical, by='*->{0}'.format(sp.key), desc=sp.reverse)
+            elif len(sortingp_list) > 1:
+                raise AttributeError("Redis doesn't support sorting on several fields at once.")
+            else:
+                return self._indexer.smembers(l[0])
         else:
             return self._indexer.sinter(*l)
 

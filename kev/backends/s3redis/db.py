@@ -56,7 +56,6 @@ class S3RedisDB(RedisDB):
         pipe.execute()
 
     def all(self, doc_class, skip, limit):
-
         id_list = [self.parse_id(id) for id in self._indexer.smembers(
             '{0}:all'.format(
             doc_class.get_class_name()))]
@@ -71,6 +70,6 @@ class S3RedisDB(RedisDB):
             yield self.get(doc_class,id)
 
     def evaluate(self, filters_list, sortingp_list, doc_class):
-        id_list = self.get_id_list(filters_list)
+        id_list = self.get_id_list(filters_list, sortingp_list, doc_class)
         for id in id_list:
             yield doc_class.get(self.parse_id(id))
