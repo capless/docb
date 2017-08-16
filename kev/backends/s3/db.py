@@ -3,6 +3,7 @@ import json
 import re
 
 from kev.backends import DocDB
+from kev.exceptions import QueryError
 
 
 class S3DB(DocDB):
@@ -103,7 +104,9 @@ class S3DB(DocDB):
                 doc_obj._id)).put(Body='')
 
 
-    def evaluate(self, filters_list, sorting_param, doc_class):
+    def evaluate(self, filters_list, sortingp_list, doc_class):
+        if len(sortingp_list) > 0:
+            raise QueryError("Sorting is not supported by this backend.")
         if len(filters_list) == 1:
             filter_value = '{}/'.format(filters_list[0])
 

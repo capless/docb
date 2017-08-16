@@ -316,6 +316,10 @@ class S3RedisQueryTestCase(KevTestCase):
         with self.assertRaises(AttributeError):
             list(self.doc_class.all(skip=-1))
 
+    def test_sorting(self):
+        with self.assertRaises(QueryError) as vm:
+            qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('name')
+            qs.count()
 
 
 class RedisQueryTestCase(S3RedisQueryTestCase):
@@ -382,6 +386,11 @@ class S3QueryTestCase(S3RedisQueryTestCase):
         self.assertEqual(count + 3, len(list(qs)))
         for doc in list(qs):
             self.assertIn(doc.city, ['Durham', 'Charlotte'])
+
+    def test_sorting(self):
+        with self.assertRaises(QueryError) as vm:
+            qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('name')
+            qs.count()
 
 
 class DynamoTestCase(KevTestCase):
@@ -505,6 +514,11 @@ class DynamoTestCase(KevTestCase):
             list(self.doc_class.all(limit=0))
         with self.assertRaises(AttributeError):
             list(self.doc_class.all(skip=-1))
+
+    def test_sorting(self):
+        with self.assertRaises(QueryError) as vm:
+            qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('name')
+            qs.count()
 
 
 class DynamoIndexTestCase(KevTestCase):

@@ -5,7 +5,7 @@ from boto3.dynamodb.conditions import Key, Attr, And
 from botocore.exceptions import ClientError
 
 from kev.backends import DocDB
-from kev.exceptions import DocNotFoundError, ResourceError
+from kev.exceptions import DocNotFoundError, ResourceError, QueryError
 
 
 class DynamoDB(DocDB):
@@ -112,7 +112,9 @@ class DynamoDB(DocDB):
             query_params['IndexName'] = index_name
         return query_params
 
-    def evaluate(self, filters_list, sorting_param, doc_class):
-         docs_list = self.get_doc_list(filters_list, sorting_param, doc_class)
-         for doc in docs_list:
-             yield doc_class(**doc)
+    def evaluate(self, filters_list, sortingp_list, doc_class):
+        if len(sortingp_list) > 0:
+            raise QueryError("Sorting is not supported by this backend.")
+        docs_list = self.get_doc_list(filters_list, sortingp_list, doc_class)
+        for doc in docs_list:
+            yield doc_class(**doc)

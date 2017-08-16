@@ -3,6 +3,8 @@ import json
 import redis
 
 from kev.backends.redis.db import RedisDB
+from kev.exceptions import QueryError
+
 
 class S3RedisDB(RedisDB):
 
@@ -70,6 +72,8 @@ class S3RedisDB(RedisDB):
             yield self.get(doc_class,id)
 
     def evaluate(self, filters_list, sortingp_list, doc_class):
+        if len(sortingp_list) > 0:
+            raise QueryError("Sorting is not supported by this backend.")
         id_list = self.get_id_list(filters_list, sortingp_list, doc_class)
         for id in id_list:
             yield doc_class.get(self.parse_id(id))
