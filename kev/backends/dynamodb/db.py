@@ -113,8 +113,12 @@ class DynamoDB(DocDB):
         return query_params
 
     def evaluate(self, filters_list, sortingp_list, doc_class):
-        if len(sortingp_list) > 0:
-            raise QueryError("Sorting is not supported by this backend.")
         docs_list = self.get_doc_list(filters_list, sortingp_list, doc_class)
-        for doc in docs_list:
-            yield doc_class(**doc)
+        if len(sortingp_list) > 0:
+            docs_list = [doc_class(**doc) for doc in docs_list]
+            sorted_list = self.sort(sortingp_list, docs_list, doc_class)
+            for doc in sorted_list:
+                yield doc
+        else:
+            for doc in docs_list:
+                yield doc_class(**doc)

@@ -143,3 +143,19 @@ class SortingParam(object):
 
     def to_cloudant(self):
         return {self.key: 'desc' if self.reverse else 'asc'}
+
+    @staticmethod
+    def needs_multiple_passes(sortingp_list):
+        """Helper method to check if a list should be sorted in multiple passes."""
+        assert len(sortingp_list) > 0
+        is_different = False
+        initial_reverse = sortingp_list[0].reverse
+        for sortingp in sortingp_list:
+            if sortingp.reverse != initial_reverse:
+                is_different = True
+        return is_different
+
+    @staticmethod
+    def attr_sort(sortinp_list):
+        """Helper method to sort by the attributes named by strings of attrs in order"""
+        return lambda x: [getattr(x, sortingp.key) for sortingp in sortinp_list]
