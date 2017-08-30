@@ -72,8 +72,12 @@ class S3RedisDB(RedisDB):
             yield self.get(doc_class,id)
 
     def evaluate(self, filters_list, sortingp_list, doc_class):
-        if len(sortingp_list) > 0:
-            raise QueryError("Sorting is not supported by this backend.")
         id_list = self.get_id_list(filters_list, sortingp_list, doc_class)
-        for id in id_list:
-            yield doc_class.get(self.parse_id(id))
+        if len(sortingp_list) > 0:
+            docs_list = [doc_class.get(self.parse_id(id)) for id in id_list]
+            sorted_list = self.sort(sortingp_list, docs_list, doc_class)
+            for doc in sorted_list:
+                yield doc
+        else:
+            for id in id_list:
+                yield doc_class.get(self.parse_id(id))
