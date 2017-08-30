@@ -604,10 +604,10 @@ class CloudantTestCase(KevTestCase):
     doc_class = CloudantTestDocumentSlug
 
     def setUp(self):
-        self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.2,
+        self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.0,
                                  email='goo@sons.com', city="Durham")
         self.t1.save()
-        self.t2 = self.doc_class(name='Great Mountain', slug='great-mountain', gpa=3.2,
+        self.t2 = self.doc_class(name='Great Mountain', slug='great-mountain', gpa=3.1,
                                  email='great@mountain.com', city='Charlotte')
         self.t2.save()
         self.t3 = self.doc_class(name='Lakewoood YMCA', slug='lakewood-ymca', gpa=3.2,
@@ -709,6 +709,16 @@ class CloudantTestCase(KevTestCase):
             qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('email', reverse=True) \
                 .sort_by('city')
             qs.count()
+
+        # sorting by a numeral field
+        db.create_query_index(fields=['city', 'gpa'])
+        qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('gpa').sort_by('city')
+        self.assertEqual(qs[0].gpa, 3.0)
+        self.assertEqual(qs[1].gpa, 3.2)
+        qs = self.doc_class.objects().filter({'city': 'Durham'}).sort_by('gpa', reverse=True)\
+                                                                .sort_by('city', reverse=True)
+        self.assertEqual(qs[0].gpa, 3.2)
+        self.assertEqual(qs[1].gpa, 3.0)
 
 
 if __name__ == '__main__':
