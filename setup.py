@@ -7,35 +7,29 @@ version = '0.9.2'
 
 LONG_DESCRIPTION = """
 =======================
-Kev
+Docb
 =======================
-
-K.E.V. (Keys, Extra Stuff, and Values) is a Python ORM for key-value \
-stores and document databases based on Valley. Currently supported \
-backends are Redis, S3, DynamoDB and a S3/Redis hybrid backend.
-
+Document database ORM for Python: Current backends are DynamoDB and Cloudant
 """
 
 setup(
-    name='kev',
+    name='docb',
     version=version,
-    description="""K.E.V. (Keys, Extra Stuff, and Values) is a Python \
-    ORM for key-value stores and document databases based on Valley. \
-    Currently supported backends are Redis, S3, DynamoDB and a \
-    S3/Redis hybrid backend.""",
+    description="""Document database ORM for Python: Current backends are DynamoDB and Cloudant
+    """,
     long_description=LONG_DESCRIPTION,
     classifiers=[
         "Programming Language :: Python",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Environment :: Web Environment",
     ],
-    keywords='redis, s3, dynamodb',
+    keywords='dynamodb, cloudant',
     author='Brian Jinwright',
     author_email='opensource@ipoots.com',
     maintainer='Brian Jinwright',
     packages=find_packages(),
-    url='https://github.com/capless/kev',
-    license='Apache',
+    url='https://github.com/capless/docb',
+    license='GPLv3',
     install_requires=[str(ir.req) for ir in install_reqs],
     include_package_data=True,
     zip_safe=False,

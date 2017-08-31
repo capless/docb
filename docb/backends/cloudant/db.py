@@ -1,4 +1,4 @@
-from kev.backends import DocDB
+from ...backends import DocDB
 from cloudant import client
 from cloudant.document import Document
 from cloudant.query import Query

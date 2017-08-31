@@ -4,7 +4,7 @@ import uuid
 import datetime
 
 from valley.exceptions import ValidationException
-from kev.utils import get_doc_type
+from ..utils import get_doc_type
 
 
 class DocDB(object):

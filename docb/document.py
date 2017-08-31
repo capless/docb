@@ -22,7 +22,7 @@ class DeclarativeVariablesMetaclass(DVM):
 
 class BaseDocument(BaseSchema):
     """
-    Base class for all Kev Documents classes.
+    Base class for all Docb Documents classes.
     """
     BUILTIN_DOC_ATTRS = ('_id', '_doc_type')
 

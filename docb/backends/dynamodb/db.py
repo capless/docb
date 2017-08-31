@@ -4,8 +4,8 @@ import boto3
 from boto3.dynamodb.conditions import Key, Attr, And
 from botocore.exceptions import ClientError
 
-from kev.backends import DocDB
-from kev.exceptions import DocNotFoundError, ResourceError
+from ...backends import DocDB
+from ...exceptions import DocNotFoundError, ResourceError
 
 
 class DynamoDB(DocDB):
