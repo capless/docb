@@ -1,63 +1,36 @@
 ![alt text](https://s3.amazonaws.com/capless/images/kev-small.png "KEV - Keys, Extra Stuff, and Values")
 
 
-# kev
-K.E.V. (Keys, Extra Stuff, and Values) is a Python ORM for key-value stores and document databases based on [**Valley**](https://www.github.com/capless/valley). Currently supported backends are Redis, S3, DynamoDB, Cloudant and a S3/Redis hybrid backend.
-
+# Docb
+Document database ORM for Python: Current backends are DynamoDB and Cloudant.
 [![Build Status](https://travis-ci.org/capless/kev.svg?branch=master)](https://travis-ci.org/capless/kev)
 
 ## Python Versions
 
-Kev should work on Python 3.5+ and higher
+Docb should work on Python 3.5+ and higher
 
 ## Install
 ```
-pip install kev
+pip install docb
 ```
 
-## Example Project Using KEV
-
-- [flask-capless-blog](https://github.com/capless/flask-capless-blog)
 ## Example Usage
 
 ### Setup the Connection
 **Example:** loading.py
 ```python
-from kev.loading import KevHandler
+from docb.loading import DocbHandler
 
 
-kev_handler = KevHandler({
-    's3':{
-        'backend':'kev.backends.s3.db.S3DB',
-        'connection':{
-            'bucket':'your-bucket-name'
-        }
-    },
-    's3redis':{
-        'backend':'kev.backends.s3redis.db.S3RedisDB',
-        'connection':{
-            'bucket':'your-bucket-name',
-            'indexer':{
-                'host':'your.redis.host.com',
-                'port':6379,
-            }
-        }
-    },
-    'redis': {
-        'backend': 'kev.backends.redis.db.RedisDB',
-        'connection': {
-            'host': 'your-redis-host.com',
-            'port': 6379,
-        }
-    },
+docb_handler = DocbHandler({
     'dynamodb': {
-        'backend': 'kev.backends.dynamodb.db.DynamoDB',
+        'backend': 'docb.backends.dynamodb.db.DynamoDB',
         'connection': {
             'table': 'your-dynamodb-table',
         }
     },
     'cloudant': {
-        'backend': 'kev.backends.cloudant.db.CloudantDB',
+        'backend': 'docb.backends.cloudant.db.CloudantDB',
         'connection': {
             'username': 'admin',
             'password': 'pass',
@@ -70,10 +43,10 @@ kev_handler = KevHandler({
 ### Setup the Models
 **Example:** models.py
 ```python
-from kev import (Document,CharProperty,DateTimeProperty,
+from docb import (Document,CharProperty,DateTimeProperty,
                  DateProperty,BooleanProperty,IntegerProperty,
                  FloatProperty)
-from .loading import kev_handler
+from .loading import docb_handler
 
 class TestDocument(Document):
     name = CharProperty(required=True,unique=True,min_length=3,max_length=20)
@@ -90,8 +63,8 @@ class TestDocument(Document):
         
 
     class Meta:
-        use_db = 's3redis'
-        handler = kev_handler
+        use_db = 'dynamodb'
+        handler = docb_handler
 
 ```
 
@@ -176,20 +149,6 @@ The chain filters feature is only available for Redis and S3/Redis backends.
 
 ```
 
-##### Wildcard Filters
-Wildcard filters currently only work with the Redis and S3/Redis backend. Use prefixes with the S3 backend.
-```python
->>>TestDocument.objects().filter({'state':'N*'})
-[<TestDocument: Kev:ec640abfd6>]
-
-```
-
-##### Prefix Filters
-Prefix filters currently only work with the S3 backend. Use wildcard filters with the Redis or S3/Redis backends.
-```python
->>>TestDocument.objects().filter({'state':'N'})
-[<TestDocument: Kev:ec640abfd6>]
-```
 ### DynamoDB setup
 #### Create a table
 * **Table name** should be between 3 and 255 characters long. (A-Z,a-z,0-9,_,-,.)
@@ -215,12 +174,12 @@ if you didn't specify `index_name` argument.**
 #### Configuration
 **Example:** loading.py
 ```python
-from kev.loading import KevHandler
+from docb.loading import DocbHandler
 
 
-kev_handler = KevHandler({
+docb_handler = DocbHandler({
     'dynamodb': {
-        'backend': 'kev.backends.dynamodb.db.DynamoDB',
+        'backend': 'docb.backends.dynamodb.db.DynamoDB',
         'connection': {
             'table': 'your-dynamodb-table',
             'endpoint_url': 'http://127.0.0.1:8000'
@@ -303,11 +262,11 @@ The default login credentials are: username=admin, password=pass
 ##### Configuration for Cloudant Developer Edition
 **Example:** loading.py
 ```python
-from kev.loading import KevHandler
+from docb.loading import DocbHandler
 
-kev_handler = KevHandler({
+docb_handler = DocbHandler({
     'cloudant': {
-        'backend': 'kev.backends.cloudant.db.CloudantDB',
+        'backend': 'docb.backends.cloudant.db.CloudantDB',
         'connection': {
             'username': 'admin',
             'password': 'pass',
