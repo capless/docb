@@ -1,9 +1,6 @@
-![alt text](https://s3.amazonaws.com/capless/images/kev-small.png "KEV - Keys, Extra Stuff, and Values")
-
-
 # Docb
 Document database ORM for Python: Current backends are DynamoDB and Cloudant.
-[![Build Status](https://travis-ci.org/capless/kev.svg?branch=master)](https://travis-ci.org/capless/kev)
+[![Build Status](https://travis-ci.org/capless/docb?branch=master)](https://travis-ci.org/capless/docb)
 
 ## Python Versions
 
@@ -324,3 +321,8 @@ TestDocument().restore('s3://your-bucket/kev/test-backup.json')
 
 **Twitter:**:[@brianjinwright](https://twitter.com/brianjinwright)
 **Github:** [bjinwright](https://github.com/bjinwright)
+
+
+### Contributors
+
+**Github:** [armicron](https://github.com/armicron)
