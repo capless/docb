@@ -1,6 +1,6 @@
 # Docb
 Document database ORM for Python: Current backends are DynamoDB and Cloudant.
-[![Build Status](https://travis-ci.org/capless/docb?branch=master)](https://travis-ci.org/capless/docb)
+[![Build Status](https://travis-ci.org/capless/docb.svg?branch=master)](https://travis-ci.org/capless/docb)
 
 ## Python Versions
 
