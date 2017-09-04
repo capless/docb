@@ -1,8 +1,8 @@
 import unittest
 
-from kev.utils import import_util, import_mod, get_doc_type
-from kev.document import Document
-from kev.properties import CharProperty
+from docb.utils import import_util, import_mod, get_doc_type
+from docb.document import Document
+from docb.properties import CharProperty
 
 
 class Frog(Document):

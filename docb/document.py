@@ -1,7 +1,10 @@
-import six
-from six import with_metaclass
+import json
+import boto3
+from urllib.parse import urlparse
+
 from valley.declarative import DeclaredVars as DV, \
     DeclarativeVariablesMetaclass as DVM
+from valley.exceptions import ValidationException
 from valley.schema import BaseSchema
 
 from .properties import BaseProperty
@@ -19,19 +22,29 @@ class DeclarativeVariablesMetaclass(DVM):
 
 class BaseDocument(BaseSchema):
     """
-    Base class for all Kev Documents classes.
+    Base class for all Docb Documents classes.
     """
     BUILTIN_DOC_ATTRS = ('_id', '_doc_type')
 
     def __init__(self, **kwargs):
         self._data = self.process_schema_kwargs(kwargs)
         self._db = self.get_db()
+        self._s3_cache = None
+        self._create_error_dict = kwargs.get('create_error_dict') or self._create_error_dict
+        if self._create_error_dict:
+            self._errors = {}
         if '_id' in self._data:
             self.set_pk(self._data['_id'])
         self._index_change_list = []
 
+    @property
+    def _s3(self):
+        if self._s3_cache is None:
+            self._s3_cache= boto3.resource('s3')
+        return self._s3_cache
+
     def __repr__(self):
-        return '<{class_name}: {uni}:{id} >'.format(
+        return '<{class_name}: {uni}:{id}>'.format(
             class_name=self.__class__.__name__, uni=self.__unicode__(),
             id=self.pk)
 
@@ -65,6 +78,18 @@ class BaseDocument(BaseSchema):
                 unique_list.append(key)
         return unique_list
 
+    def check_unique(self):
+        
+        for key in self.get_unique_props():
+            try:
+                self._db.check_unique(self,key,self.cleaned_data.get(key))
+            except ValidationException as e:
+                if self._create_error_dict:
+                    self._errors[key] = e.error_msg
+                else:
+                    raise e
+
+
     def get_indexes(self):
         index_list = []
         for i in self.get_indexed_props():
@@ -89,8 +114,8 @@ class BaseDocument(BaseSchema):
 
     @classmethod
     def get_index_name(cls, prop, index_value):
-        if cls.get_db().backend_id != 'dynamodb':
-            if isinstance(index_value,six.string_types):
+        if cls.get_db().backend_id != 'dynamodb' and cls.get_db().backend_id != 'cloudant':
+            if isinstance(index_value,str):
                 index_value = index_value.lower()
         return '{0}:{1}:indexes:{2}:{3}'.format(
             cls.get_db().backend_id.lower(),
@@ -105,8 +130,12 @@ class BaseDocument(BaseSchema):
         return cls.get_db().get(cls, doc_id)
 
     @classmethod
-    def all(cls):
-        return cls.get_db().all(cls)
+    def all(cls, skip=None, limit=None):
+        if skip and skip < 0:
+            raise AttributeError("skip value should be an positive integer")
+        if limit is not None and limit < 1:
+            raise AttributeError("limit value should be an positive integer, valid range 1-inf")
+        return cls.get_db().all(cls, skip, limit)
 
     def flush_db(self):
         self._db.flush_db()
@@ -117,13 +146,53 @@ class BaseDocument(BaseSchema):
     def save(self):
         self._db.save(self)
 
+    def get_restore_json(self,restore_path,path_type,bucket=None):
+        if path_type == 's3':
+            print(bucket,restore_path)
+            return json.loads(self._s3.Object(
+                bucket, restore_path).get().get('Body').read().decode())
+        else:
+            with open(restore_path) as f:
+                return json.load(f)
+
+    def get_path_type(self,path):
+        if path.startswith('s3://'):
+            result = urlparse(path)
+
+            return (result.path[1:],'s3',result.netloc)
+        else:
+            return (path,'local',None)
+
+    def restore(self,restore_path):
+        file_path, path_type, bucket = self.get_path_type(restore_path)
+        docs = self.get_restore_json(file_path,path_type,bucket)
+        for doc in docs:
+            self.__class__(**doc).save()
+
+    def remove_id(self,doc):
+        doc._data.pop('_id')
+        return doc
+
+    def backup(self,export_path):
+        file_path, path_type, bucket = self.get_path_type(export_path)
+        json_docs = [self._db.prep_doc(
+            self.remove_id(doc)) for doc in self.all()]
+
+        if path_type == 'local':
+            with open(export_path,'w+') as f:
+                json.dump(json_docs,f)
+        else:
+            #Use tmp directory if we are uploading to S3 just in case we
+            #are using Lambda
+            self._s3.Object(bucket, file_path).put(
+                Body=json.dumps(json_docs))
 
     class Meta:
         use_db = 'default'
         handler = None
 
 
-class Document(with_metaclass(DeclarativeVariablesMetaclass, BaseDocument)):
+class Document(BaseDocument,metaclass=DeclarativeVariablesMetaclass):
 
     @classmethod
     def get_db(cls):

@@ -1,14 +1,14 @@
-# kev
-K.E.V. (Keys, Extra Stuff, and Values) is a Python ORM for key-value stores and document databases based on [**Valley**](https://www.github.com/capless/valley). Currently supported backends are Redis, S3, DynamoDB and a S3/Redis hybrid backend.
-
-[![Build Status](https://travis-ci.org/capless/kev.svg?branch=master)](https://travis-ci.org/capless/kev)
+# Docb
+Document database ORM for Python: Current backends are DynamoDB and Cloudant.
+[![Build Status](https://travis-ci.org/capless/docb.svg?branch=master)](https://travis-ci.org/capless/docb)
 
 ## Python Versions
 
-Kev should work on Python 2.7, 3.3, 3.4, and 3.5. It will not work on 3.2.
+Docb should work on Python 3.5+ and higher
+
 ## Install
 ```
-pip install kev
+pip install docb
 ```
 
 ## Example Usage
@@ -16,37 +16,23 @@ pip install kev
 ### Setup the Connection
 **Example:** loading.py
 ```python
-from kev.loading import KevHandler
+from docb.loading import DocbHandler
 
 
-kev_handler = KevHandler({
-    's3':{
-        'backend':'kev.backends.s3.db.S3DB',
-        'connection':{
-            'bucket':'your-bucket-name'
-        }
-    },
-    's3redis':{
-        'backend':'kev.backends.s3redis.db.S3RedisDB',
-        'connection':{
-            'bucket':'your-bucket-name',
-            'indexer':{
-                'host':'your.redis.host.com',
-                'port':6379,
-            }
-        }
-    },
-    'redis': {
-        'backend': 'kev.backends.redis.db.RedisDB',
-        'connection': {
-            'host': 'your-redis-host.com',
-            'port': 6379,
-        }
-    },
+docb_handler = DocbHandler({
     'dynamodb': {
-        'backend': 'kev.backends.dynamodb.db.DynamoDB',
+        'backend': 'docb.backends.dynamodb.db.DynamoDB',
         'connection': {
             'table': 'your-dynamodb-table',
+        }
+    },
+    'cloudant': {
+        'backend': 'docb.backends.cloudant.db.CloudantDB',
+        'connection': {
+            'username': 'admin',
+            'password': 'pass',
+            'account_name': 'your-account-name',
+            'table': 'your-table-name',
         }
     }
 })
@@ -54,13 +40,13 @@ kev_handler = KevHandler({
 ### Setup the Models
 **Example:** models.py
 ```python
-from kev import (Document,CharProperty,DateTimeProperty,
+from docb import (Document,CharProperty,DateTimeProperty,
                  DateProperty,BooleanProperty,IntegerProperty,
                  FloatProperty)
-from .loading import kev_handler
+from .loading import docb_handler
 
 class TestDocument(Document):
-    name = CharProperty(required=True,unique=True,min_length=5,max_length=20)
+    name = CharProperty(required=True,unique=True,min_length=3,max_length=20)
     last_updated = DateTimeProperty(auto_now=True)
     date_created = DateProperty(auto_now_add=True)
     is_active = BooleanProperty(default_value=True,index=True)
@@ -74,8 +60,8 @@ class TestDocument(Document):
         
 
     class Meta:
-        use_db = 's3redis'
-        handler = kev_handler
+        use_db = 'dynamodb'
+        handler = docb_handler
 
 ```
 
@@ -122,6 +108,14 @@ ec640abfd6
 
 [<TestDocument: Kev:ec640abfd6>,<TestDocument: George:aff7bcfb56>,<TestDocument: Sally:c38a77cfe4>]
 
+>>>TestDocument.all(skip=1)
+
+[<TestDocument: George:aff7bcfb56>,<TestDocument: Sally:c38a77cfe4>]
+
+>>>TestDocument.all(limit=2)
+
+[<TestDocument: Kev:ec640abfd6>,<TestDocument: George:aff7bcfb56>]
+
 ```
 ##### Get One Document
 ```python
@@ -152,20 +146,6 @@ The chain filters feature is only available for Redis and S3/Redis backends.
 
 ```
 
-##### Wildcard Filters
-Wildcard filters currently only work with the Redis and S3/Redis backend. Use prefixes with the S3 backend.
-```python
->>>TestDocument.objects().filter({'state':'N*'})
-[<TestDocument: Kev:ec640abfd6>]
-
-```
-
-##### Prefix Filters
-Prefix filters currently only work with the S3 backend. Use wildcard filters with the Redis or S3/Redis backends.
-```python
->>>TestDocument.objects().filter({'state':'N'})
-[<TestDocument: Kev:ec640abfd6>]
-```
 ### DynamoDB setup
 #### Create a table
 * **Table name** should be between 3 and 255 characters long. (A-Z,a-z,0-9,_,-,.)
@@ -175,8 +155,13 @@ Prefix filters currently only work with the S3 backend. Use wildcard filters wit
 If you want to make `filter()` queries, you should create an index for every attribute that you want to filter by.
 * **Primary key** should be equal to attribute name.
 * **Index name** should be equal to attribute name postfixed by *"-index"*. (It will be filled by AWS automatically).
-For example, for attribute *"city"*: *Primary key* = *"city"* and index name = *"city-index"*. 
-- **IMPORTANT: In other words if your indexed attribute is named city, then your index name should be city-index.**
+For example, for attribute *"city"*: *Primary key* = *"city"* and index name = *"city-index"*.
+* **Index name** can be directly specified by `index_name` argument:
+```python
+    name = CharProperty(required=True,unique=True,min_length=5,max_length=20,index_name='name_index')
+```
+- **IMPORTANT: In other words, if your indexed attribute is named city, then your index name should be city-index,
+if you didn't specify `index_name` argument.**
 * **Projected attributes**: *All*.
 
 ### Use DynamoDB locally
@@ -186,15 +171,15 @@ For example, for attribute *"city"*: *Primary key* = *"city"* and index name = *
 #### Configuration
 **Example:** loading.py
 ```python
-from kev.loading import KevHandler
+from docb.loading import DocbHandler
 
 
-kev_handler = KevHandler({
+docb_handler = DocbHandler({
     'dynamodb': {
-        'backend': 'kev.backends.dynamodb.db.DynamoDB',
+        'backend': 'docb.backends.dynamodb.db.DynamoDB',
         'connection': {
             'table': 'your-dynamodb-table',
-            'endpoint_url' 'http://127.0.0.1:8000'
+            'endpoint_url': 'http://127.0.0.1:8000'
         }
     }
 })
@@ -249,7 +234,95 @@ export DYNAMO_TABLE_TEST='localtable'
 export DYNAMO_ENDPOINT_URL_TEST='http://127.0.0.1:8000'
 ```
 
+### Cloudant setup
+#### Cloudant Developer Edition [Docker Hub](https://hub.docker.com/r/ibmcom/cloudant-developer/)
+
+* Download the image from Docker Hub:
+
+ `docker pull ibmcom/cloudant-developer`
+* Run the following:
+
+ `docker run --detach --volume cloudant:/srv --name cloudant-developer  --publish 8080:80 \
+       --hostname cloudant.dev ibmcom/cloudant-developer`
+* To view the End User License run the following:
+
+`docker exec -ti cloudant-developer cast license`
+
+* You can start and stop the container by following commands:
+
+`docker start cloudant-developer` and `docker stop cloudant-developer`
+
+You can access the cloudant dashboard [http://localhost:8080/dashboard.html](http://localhost:8080/dashboard.html)
+
+The default login credentials are: username=admin, password=pass
+
+##### Configuration for Cloudant Developer Edition
+**Example:** loading.py
+```python
+from docb.loading import DocbHandler
+
+docb_handler = DocbHandler({
+    'cloudant': {
+        'backend': 'docb.backends.cloudant.db.CloudantDB',
+        'connection': {
+            'username': 'admin',
+            'password': 'pass',
+            'table': 'your-cloudant-table',
+            'url': 'http://127.0.0.1:8080'
+        }
+    }
+})
+```
+
+#### Setup environment variables for testing.
+```bash
+export CLOUDANT_USERNAME_TEST='admin'
+export CLOUDANT_PASSWORD_TEST='pass'
+export CLOUDANT_URL_TEST='http://127.0.0.1:8080/'
+export CLOUDANT_TABLE_TEST='localtable'
+```
+
+### Backup and Restore
+
+Easily backup or restore your model locally or from S3. The backup method creates a JSON file backup. 
+
+#### Backup 
+
+##### Local Backup
+
+```python
+TestDocument().backup('test-backup.json')
+```
+
+##### S3 Backup
+
+```python
+
+TestDocument().backup('s3://your-bucket/kev/test-backup.json')
+```
+
+#### Restore
+
+##### Local Restore
+
+```python
+
+TestDocument().restore('test-backup.json')
+```
+
+#### S3 Restore
+
+```python
+
+TestDocument().restore('s3://your-bucket/kev/test-backup.json')
+```
+
 ### Author
 
 **Twitter:**:[@brianjinwright](https://twitter.com/brianjinwright)
 **Github:** [bjinwright](https://github.com/bjinwright)
+
+
+### Contributors
+
+**Github:** [armicron](https://github.com/armicron)

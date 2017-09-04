@@ -1,6 +1,6 @@
 import unittest
 import datetime
-from kev.properties import (BaseProperty, CharProperty, DateProperty,
+from docb.properties import (BaseProperty, CharProperty, DateProperty,
                             DateTimeProperty, FloatProperty, IntegerProperty,
                             BooleanProperty, SlugProperty, EmailProperty)
 from valley.exceptions import ValidationException

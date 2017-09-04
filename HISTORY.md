@@ -1,5 +1,17 @@
 # History
 
+### 0.9.1
+
+- Removed Python 2 support
+- Added backup and restore feature
+- Upgraded to valley 1.3.0
+
+### 0.9.0
+
+- Fixed S3 backend filters
+- Added logic to make it easy to switch _create_error_dict
+- Added check_unique method on Document so it easier to do these validations in Formy
+
 ### 0.8.1
 
 - Fixed get_index_name for backends other than DynamoDB

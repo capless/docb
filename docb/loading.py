@@ -1,7 +1,7 @@
 import valley.utils
 
 
-class KevHandler(object):
+class DocbHandler(object):
 
     def __init__(self, databases):
         # Created for get_db method
