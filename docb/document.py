@@ -137,6 +137,10 @@ class BaseDocument(BaseSchema):
             raise AttributeError("limit value should be an positive integer, valid range 1-inf")
         return cls.get_db().all(cls, skip, limit)
 
+    @classmethod
+    def create_table(cls):
+        return cls.get_db().create_table(cls)
+
     def flush_db(self):
         self._db.flush_db()
 
