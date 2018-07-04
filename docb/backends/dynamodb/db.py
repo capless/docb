@@ -16,12 +16,28 @@ class DynamoDB(DocDB):
     index_field_name = 'index_name'
 
     def __init__(self, **kwargs):
-        if 'aws_secret_access_key' in kwargs and 'aws_access_key_id' in kwargs:
-            boto3.Session(aws_secret_access_key=kwargs['aws_secret_access_key'],
-                aws_access_key_id=kwargs['aws_access_key_id'])
-        self._db = self.db_class.resource('dynamodb', endpoint_url=kwargs.get('endpoint_url', None))
-        self.table = kwargs['table']
-        self._indexer = self._db.Table(self.table)
+        self._kwargs = kwargs
+        self._boto3_session_cache = None
+        self._boto3_session
+        self._dynamodb_cache = None
+        self._indexer = self._dynamodb
+
+    @property
+    def _dynamodb(self):
+        if self._dynamodb_cache is None:
+            self._dynamodb_cache = self.db_class.resource(
+                'dynamodb', endpoint_url=self._kwargs.get('endpoint_url', None))\
+                .Table(self._kwargs['table'])
+        return self._dynamodb_cache
+
+    @property
+    def _boto3_session(self):
+        if self._boto3_session_cache is None:
+            if 'aws_secret_access_key' in self._kwargs and 'aws_access_key_id' in self._kwargs:
+                self._boto3_session_cache = boto3.Session(
+                    aws_secret_access_key=self._kwargs['aws_secret_access_key'],
+                    aws_access_key_id=self._kwargs['aws_access_key_id'])
+        return self._boto3_session_cache
 
     # CRUD Operations
     def save(self, doc_obj):

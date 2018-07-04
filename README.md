@@ -1,5 +1,5 @@
 # Docb
-Document database ORM for Python: Current backends are DynamoDB and Cloudant.
+Python ORM for DynamoDB
 [![Build Status](https://travis-ci.org/capless/docb.svg?branch=master)](https://travis-ci.org/capless/docb)
 
 ## Python Versions
@@ -24,15 +24,6 @@ docb_handler = DocbHandler({
         'backend': 'docb.backends.dynamodb.db.DynamoDB',
         'connection': {
             'table': 'your-dynamodb-table',
-        }
-    },
-    'cloudant': {
-        'backend': 'docb.backends.cloudant.db.CloudantDB',
-        'connection': {
-            'username': 'admin',
-            'password': 'pass',
-            'account_name': 'your-account-name',
-            'table': 'your-table-name',
         }
     }
 })
@@ -234,53 +225,6 @@ export DYNAMO_TABLE_TEST='localtable'
 export DYNAMO_ENDPOINT_URL_TEST='http://127.0.0.1:8000'
 ```
 
-### Cloudant setup
-#### Cloudant Developer Edition [Docker Hub](https://hub.docker.com/r/ibmcom/cloudant-developer/)
-
-* Download the image from Docker Hub:
-
- `docker pull ibmcom/cloudant-developer`
-* Run the following:
-
- `docker run --detach --volume cloudant:/srv --name cloudant-developer  --publish 8080:80 \
-       --hostname cloudant.dev ibmcom/cloudant-developer`
-* To view the End User License run the following:
-
-`docker exec -ti cloudant-developer cast license`
-
-* You can start and stop the container by following commands:
-
-`docker start cloudant-developer` and `docker stop cloudant-developer`
-
-You can access the cloudant dashboard [http://localhost:8080/dashboard.html](http://localhost:8080/dashboard.html)
-
-The default login credentials are: username=admin, password=pass
-
-##### Configuration for Cloudant Developer Edition
-**Example:** loading.py
-```python
-from docb.loading import DocbHandler
-
-docb_handler = DocbHandler({
-    'cloudant': {
-        'backend': 'docb.backends.cloudant.db.CloudantDB',
-        'connection': {
-            'username': 'admin',
-            'password': 'pass',
-            'table': 'your-cloudant-table',
-            'url': 'http://127.0.0.1:8080'
-        }
-    }
-})
-```
-
-#### Setup environment variables for testing.
-```bash
-export CLOUDANT_USERNAME_TEST='admin'
-export CLOUDANT_PASSWORD_TEST='pass'
-export CLOUDANT_URL_TEST='http://127.0.0.1:8080/'
-export CLOUDANT_TABLE_TEST='localtable'
-```
 
 ### Backup and Restore
 
