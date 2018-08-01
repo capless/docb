@@ -150,6 +150,10 @@ class BaseDocument(BaseSchema):
     def save(self):
         self._db.save(self)
 
+    @classmethod
+    def bulk_save(cls,doc_list):
+        cls.get_db().bulk_save(doc_list)
+
     def get_restore_json(self,restore_path,path_type,bucket=None):
         if path_type == 's3':
             print(bucket,restore_path)

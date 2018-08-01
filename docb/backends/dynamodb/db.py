@@ -40,19 +40,33 @@ class DynamoDB(DocDB):
                     aws_access_key_id=self._kwargs['aws_access_key_id'])
         return self._boto3_session_cache
 
-    # CRUD Operations
-    def save(self, doc_obj):
+    def prepare_doc(self,doc_obj):
         doc_obj, doc = self._save(doc_obj)
         # DynamoDB requires Decimal type instead of Float
         for key, value in doc.items():
             if type(value) == float:
                 doc[key] = decimal.Decimal(str(value))
+        return (doc_obj,doc)
+
+    # CRUD Operations
+    def save(self, doc_obj):
+        doc_obj,doc = self.prepare_doc(doc_obj)
         try:
             self._indexer.put_item(Item=doc)
         except ClientError as e:
             if e.response['Error']['Code'] == 'ResourceNotFoundException':
                 raise ResourceError('Table doesn\'t exist.')
         return doc_obj
+
+    def bulk_save(self,doc_list):
+        prep_doc_obj_list = []
+        with self._indexer.batch_writer() as batch:
+            for i in doc_list:
+                doc_obj,doc = self.prepare_doc(i)
+                prep_doc_obj_list.append(doc_obj)
+                batch.put_item(Item=doc)
+        return prep_doc_obj_list
+
 
     def delete(self, doc_obj):
         self._indexer.delete_item(Key={'_id': doc_obj._data['_id']})
