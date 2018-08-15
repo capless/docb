@@ -65,7 +65,7 @@ class BaseDocument(BaseSchema):
         self.pk = self.id
 
     def get_indexed_props(self):
-        index_list = []
+        index_list = ['_doc_type']
         for key, prop in list(self._base_properties.items()):
             if prop.index:
                 index_list.append(key)
@@ -156,7 +156,6 @@ class BaseDocument(BaseSchema):
 
     def get_restore_json(self,restore_path,path_type,bucket=None):
         if path_type == 's3':
-            print(bucket,restore_path)
             return json.loads(self._s3.Object(
                 bucket, restore_path).get().get('Body').read().decode())
         else:

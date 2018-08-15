@@ -53,10 +53,8 @@ class DynamoTestCustomIndex(TestDocument):
     email = CharProperty(required=True, unique=True)
     city = CharProperty(required=True, index=True, index_name='custom-index')
 
-    class Meta:
-        use_db = 'dynamodb'
-        handler = docb_handler
 
+docb_handler.add_doc(DynamoTestCustomIndex,'dynamodb')
 
 class DocumentTestCase(DocbTestCase):
     def test_default_values(self):
@@ -264,7 +262,7 @@ class DynamoIndexTestCase(DocbTestCase):
 
     def setUp(self):
         self.doc_class().flush_db()
-        self.db = self.doc_class.get_db()._indexer
+        self.db = self.doc_class.get_db()._dynamodb
         self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.2,
                                  email='goo@sons.com', city="Durham")
         self.t1.save()
