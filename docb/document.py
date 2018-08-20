@@ -7,12 +7,13 @@ from valley.declarative import DeclaredVars as DV, \
 from valley.exceptions import ValidationException
 from valley.schema import BaseSchema
 
-from .properties import BaseProperty
+import docb.properties
+import docb.utils
 from .query import QueryManager
 
 
 class DeclaredVars(DV):
-    base_field_class = BaseProperty
+    base_field_class = docb.properties.BaseProperty
     base_field_type = '_base_properties'
 
 
@@ -71,6 +72,32 @@ class BaseDocument(BaseSchema):
                 index_list.append(key)
         return index_list
 
+    def get_indexed_props_dict(self):
+        indexes = {}
+        for key, prop in list(self._base_properties.items()):
+            if prop.index:
+                indexes[self._db.default_index_name.format(key)] = {
+                    'type':self.get_type(prop),
+                    'name':key,
+                    'key_type':prop.key_type
+                }
+        return indexes
+
+    def build_cf_resource(self,resource_name,table_name):
+        try:
+            config = self.Meta.config
+        except AttributeError:
+            config = self.Meta.handler._databases[self.Meta.use_db]['config']
+        table_config = docb.utils.TableConfig(**config)
+        table_config.validate()
+        indexes = self.get_indexed_props_dict().items()
+        return docb.utils.build_cf_resource(
+            resource_name,table_name, table_config, indexes)
+
+    def build_cf_template(self,resource_name,table_name):
+        return docb.utils.build_cf_template(self.build_cf_resource(
+            resource_name,table_name))
+
     def get_unique_props(self):
         unique_list = []
         for key, prop in list(self._base_properties.items()):
@@ -88,6 +115,18 @@ class BaseDocument(BaseSchema):
                     self._errors[key] = e.error_msg
                 else:
                     raise e
+
+    def get_type(self, property_class):
+        property_type = type(property_class)
+        property_to_dynamodb = {docb.properties.CharProperty: 'S',
+                                docb.properties.SlugProperty: 'S',
+                                docb.properties.EmailProperty: 'S',
+                                docb.properties.IntegerProperty: 'N',
+                                docb.properties.FloatProperty: 'N',
+                                docb.properties.BooleanProperty: 'S',
+                                docb.properties.DateProperty: 'S',
+                                docb.properties.DateTimeProperty: 'S'}
+        return property_to_dynamodb[property_type]
 
 
     def get_indexes(self):
@@ -114,7 +153,7 @@ class BaseDocument(BaseSchema):
 
     @classmethod
     def get_index_name(cls, prop, index_value):
-        if cls.get_db().backend_id != 'dynamodb' and cls.get_db().backend_id != 'cloudant':
+        if cls.get_db().backend_id != 'dynamodb':
             if isinstance(index_value,str):
                 index_value = index_value.lower()
         return '{0}:{1}:indexes:{2}:{3}'.format(
@@ -128,14 +167,6 @@ class BaseDocument(BaseSchema):
     @classmethod
     def get(cls, doc_id):
         return cls.get_db().get(cls, doc_id)
-
-    @classmethod
-    def all(cls, skip=None, limit=None):
-        if skip and skip < 0:
-            raise AttributeError("skip value should be an positive integer")
-        if limit is not None and limit < 1:
-            raise AttributeError("limit value should be an positive integer, valid range 1-inf")
-        return cls.get_db().all(cls, skip, limit)
 
     @classmethod
     def create_table(cls):
@@ -156,7 +187,6 @@ class BaseDocument(BaseSchema):
 
     def get_restore_json(self,restore_path,path_type,bucket=None):
         if path_type == 's3':
-            print(bucket,restore_path)
             return json.loads(self._s3.Object(
                 bucket, restore_path).get().get('Body').read().decode())
         else:
@@ -184,7 +214,7 @@ class BaseDocument(BaseSchema):
     def backup(self,export_path):
         file_path, path_type, bucket = self.get_path_type(export_path)
         json_docs = [self._db.prep_doc(
-            self.remove_id(doc)) for doc in self.all()]
+            self.remove_id(doc)) for doc in self.objects().all()]
 
         if path_type == 'local':
             with open(export_path,'w+') as f:
@@ -198,6 +228,7 @@ class BaseDocument(BaseSchema):
     class Meta:
         use_db = 'default'
         handler = None
+        config = None
 
 
 class Document(BaseDocument,metaclass=DeclarativeVariablesMetaclass):

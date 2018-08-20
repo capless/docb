@@ -108,6 +108,10 @@ class QuerySet(QuerySetMixin):
             raise QueryError('This query did not return a result.')
         return qs[0]
 
+    def all(self):
+        return QuerySet(self._doc_class,
+            {'_doc_type':self._doc_class.__name__}, self.q)
+
     def evaluate(self):
         filters_list = self.prepare_filters()
         return self._doc_class.get_db().evaluate(filters_list, self._doc_class)
@@ -120,3 +124,4 @@ class QueryManager(object):
 
         self.filter = QuerySet(self._doc_class).filter
         self.get = QuerySet(self._doc_class).get
+        self.all = QuerySet(self._doc_class).all

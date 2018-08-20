@@ -1,5 +1,6 @@
 import unittest
 import datetime
+
 from docb.properties import (BaseProperty, CharProperty, DateProperty,
                             DateTimeProperty, FloatProperty, IntegerProperty,
                             BooleanProperty, SlugProperty, EmailProperty)
