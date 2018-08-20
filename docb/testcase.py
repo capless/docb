@@ -4,7 +4,7 @@ from envs import env
 
 docb_handler = DocbHandler({
     'dynamodb': {
-        'backend': 'docb.backends.dynamodb.db.DynamoDB',
+        'backend': 'docb.db.DynamoDB',
         'connection': {
             'table': env('DYNAMO_TABLE_TEST'),
             'endpoint_url': env('DYNAMO_ENDPOINT_URL_TEST')

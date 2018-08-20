@@ -7,7 +7,7 @@ def parse_requirements(filename):
     return [line for line in lineiter if line and not line.startswith("#")]
 
 
-version = '0.10.1'
+version = '0.11.0'
 
 LONG_DESCRIPTION = """
 =======================
@@ -32,6 +32,9 @@ setup(
     maintainer='Brian Jinwright',
     packages=find_packages(),
     url='https://github.com/capless/docb',
+    extras_require={
+        'test': parse_requirements('test_requirements.txt'),
+    },
     license='GPLv3',
     install_requires=parse_requirements('requirements.txt'),
     include_package_data=True,

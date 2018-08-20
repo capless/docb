@@ -1,5 +1,3 @@
 boto3>=1.3.1
-coverage>=4.1
-envs>=1.1.1
-nose>=1.3.7
 valley>=1.5.2
+sammy>=0.3.10
