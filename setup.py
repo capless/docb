@@ -7,13 +7,13 @@ def parse_requirements(filename):
     return [line for line in lineiter if line and not line.startswith("#")]
 
 
-version = '0.11.0'
+version = '0.12.0'
 
 LONG_DESCRIPTION = """
 =======================
 Docb
 =======================
-Python ORM for DynamoDB
+Opinionated Python ORM for DynamoDB
 """
 
 setup(

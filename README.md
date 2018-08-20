@@ -1,5 +1,5 @@
 # Docb
-Python ORM for DynamoDB
+Opinionated Python ORM for DynamoDB
 [![Build Status](https://travis-ci.org/capless/docb.svg?branch=master)](https://travis-ci.org/capless/docb)
 
 ## Python Versions
