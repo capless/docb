@@ -17,6 +17,9 @@ class BaseProperty(VBaseProperty):
         required=False,
         index=False,
         unique=False,
+        write_capacity=None,
+        read_capacity=None,
+        key_type='HASH',
         validators=[],
         verbose_name=None,
         **kwargs
@@ -28,6 +31,9 @@ class BaseProperty(VBaseProperty):
                                            **kwargs)
         self.index = index
         self.unique = unique
+        self.key_type = key_type
+        self.read_capacity = read_capacity
+        self.write_capacity = write_capacity
         if unique:
             self.index = True
 

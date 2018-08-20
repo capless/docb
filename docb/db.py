@@ -88,6 +88,17 @@ class DynamoDB(object):
                 raise ResourceError('Table doesn\'t exist.')
         return doc_obj
 
+    def flush_db(self):
+        kwargs = {}
+        while True:
+            response = self._dynamodb.scan(**kwargs)
+            for doc in response['Items']:
+                self._dynamodb.delete_item(Key={'_id': doc['_id']})
+            if 'LastEvaluatedKey' not in response:
+                break
+            else:
+                kwargs.update({'ExclusiveStartKey': response['LastEvaluatedKey']})
+
     def bulk_save(self, doc_list):
         prep_doc_obj_list = []
         with self._dynamodb.batch_writer() as batch:
@@ -160,7 +171,6 @@ class DynamoDB(object):
         docs_list = self.get_doc_list(filters_list, doc_class)
         for doc in docs_list:
             yield doc_class(**doc)
-
 
     def create_table(self, doc_class):
         """

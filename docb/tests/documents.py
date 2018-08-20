@@ -6,7 +6,7 @@ import time
 
 from botocore.exceptions import ClientError
 from envs import env
-
+from moto import mock_dynamodb2,mock_dynamodb
 from docb import (Document,CharProperty,DateTimeProperty,
                  DateProperty,BooleanProperty,IntegerProperty,
                  FloatProperty)
@@ -54,9 +54,8 @@ class DynamoTestCustomIndex(TestDocument):
     city = CharProperty(required=True, index=True, index_name='custom-index')
 
 
-docb_handler.add_doc(DynamoTestCustomIndex,'dynamodb')
-
 class DocumentTestCase(DocbTestCase):
+
     def test_default_values(self):
         obj = TestDocument(name='Fred')
         self.assertEqual(obj.is_active, True)
@@ -68,7 +67,6 @@ class DocumentTestCase(DocbTestCase):
         self.assertEqual(obj.no_subscriptions, 1)
         self.assertEqual(obj._data.get('no_subscriptions'), 1)
         self.assertEqual(obj.gpa,None)
-
 
     def test_get_unique_props(self):
         obj = DynamoTestDocumentSlug(name='Brian',slug='brian',email='brian@host.com',
@@ -87,40 +85,40 @@ class DocumentTestCase(DocbTestCase):
             is_active=False,
             no_subscriptions=2,
             gpa=3.5)
-        t1.save()
+        t1.validate()
 
     def test_validate_boolean(self):
         t2 = TestDocument(name='Google', is_active='Gone', gpa=4.0)
         with self.assertRaises(ValidationException) as vm:
-            t2.save()
+            t2.validate()
         self.assertEqual(str(vm.exception),
                          'is_active: This value should be True or False.')
 
     def test_validate_datetime(self):
         t2 = TestDocument(name='Google', gpa=4.0, last_updated='today')
         with self.assertRaises(ValidationException) as vm:
-            t2.save()
+            t2.validate()
         self.assertEqual(str(vm.exception),
                          'last_updated: This value should be a valid datetime object.')
 
     def test_validate_date(self):
         t2 = TestDocument(name='Google', gpa=4.0, date_created='today')
         with self.assertRaises(ValidationException) as vm:
-            t2.save()
+            t2.validate()
         self.assertEqual(str(vm.exception),
                          'date_created: This value should be a valid date object.')
 
     def test_validate_integer(self):
         t2 = TestDocument(name='Google', gpa=4.0, no_subscriptions='seven')
         with self.assertRaises(ValidationException) as vm:
-            t2.save()
+            t2.validate()
         self.assertEqual(str(vm.exception),
                          'no_subscriptions: This value should be an integer')
 
     def test_validate_float(self):
         t2 = TestDocument(name='Google', gpa='seven')
         with self.assertRaises(ValidationException) as vm:
-            t2.save()
+            t2.validate()
         self.assertEqual(str(vm.exception),
                          'gpa: This value should be a float.')
 
@@ -154,9 +152,9 @@ class DynamoTestCase(DocbTestCase):
         self.assertEqual(obj._id, self.t1._id)
 
     def test_flush_db(self):
-        self.assertEqual(3, len(list(self.doc_class.all())))
+        self.assertEqual(3, len(list(self.doc_class.objects().all())))
         self.doc_class().flush_db()
-        self.assertEqual(0, len(list(self.doc_class.all())))
+        self.assertEqual(0, len(list(self.doc_class.objects().all())))
 
     def test_delete(self):
         qs = self.doc_class.objects().filter({'city': 'Durham'})
@@ -166,7 +164,7 @@ class DynamoTestCase(DocbTestCase):
         self.assertEqual(1, qs.count())
 
     def test_all(self):
-        docs = list(self.doc_class.all())
+        docs = list(self.doc_class.objects().all())
         self.assertEqual(3, len(docs))
         for doc in docs:
             self.assertIn(doc.city, ['Durham', 'Charlotte'])
@@ -195,7 +193,7 @@ class DynamoTestCase(DocbTestCase):
             doc = self.doc_class(name='Object_{0}'.format(i), slug='object-{0}'.format(i), gpa=4.6,
                                  email='object_{0}@ymca.com'.format(i), city='Durham')
             doc.save()
-        qs = self.doc_class.all()
+        qs = self.doc_class.objects().all()
         self.assertEqual(count + 3, len(list(qs)))
         for doc in list(qs):
             self.assertIn(doc.city, ['Durham', 'Charlotte'])
@@ -222,9 +220,9 @@ class DynamoTestCase(DocbTestCase):
 
         self.doc_class().backup('test-backup.json')
         self.doc_class().flush_db()
-        self.assertEqual(len(list(self.doc_class.all())),0)
+        self.assertEqual(len(list(self.doc_class.objects().all())),0)
         self.doc_class().restore('test-backup.json')
-        self.assertEqual(len(list(self.doc_class.all())), 3)
+        self.assertEqual(len(list(self.doc_class.objects().all())), 3)
         os.remove('test-backup.json')
 
     def test_s3_backup(self):
@@ -241,20 +239,9 @@ class DynamoTestCase(DocbTestCase):
         self.doc_class().backup(
             's3://{}/kev/test-backup.json'.format(env('S3_BUCKET_TEST')))
         self.doc_class().flush_db()
-        self.assertEqual(len(list(self.doc_class.all())),0)
+        self.assertEqual(len(list(self.doc_class.objects().all())),0)
         self.doc_class().restore('s3://{}/kev/test-backup.json'.format(env('S3_BUCKET_TEST')))
-        self.assertEqual(len(list(self.doc_class.all())), 3)
-
-    def test_limit_and_skip(self):
-        self.assertEqual(3, len(list(self.doc_class.all(limit=4))))
-        for x in range(1, 4):
-            self.assertEqual(x, len(list(self.doc_class.all(limit=x))))
-        self.assertEqual(2, len(list(self.doc_class.all(skip=1, limit=3))))
-        self.assertEqual(0, len(list(self.doc_class.all(skip=3, limit=3))))
-        with self.assertRaises(AttributeError):
-            list(self.doc_class.all(limit=0))
-        with self.assertRaises(AttributeError):
-            list(self.doc_class.all(skip=-1))
+        self.assertEqual(len(list(self.doc_class.objects().all())), 3)
 
 
 class DynamoIndexTestCase(DocbTestCase):

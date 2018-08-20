@@ -32,6 +32,9 @@ setup(
     maintainer='Brian Jinwright',
     packages=find_packages(),
     url='https://github.com/capless/docb',
+    extras_require={
+        'test': parse_requirements('test_requirements.txt'),
+    },
     license='GPLv3',
     install_requires=parse_requirements('requirements.txt'),
     include_package_data=True,
