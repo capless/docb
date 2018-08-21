@@ -1,4 +1,3 @@
-import json
 import os
 import unittest
 import datetime
@@ -6,58 +5,19 @@ import time
 
 from botocore.exceptions import ClientError
 from envs import env
-from moto import mock_dynamodb2,mock_dynamodb
-from docb import (Document,CharProperty,DateTimeProperty,
-                 DateProperty,BooleanProperty,IntegerProperty,
-                 FloatProperty)
-from docb.testcase import docb_handler, DocbTestCase
+
+from docb.testcase import (DocbTestCase,DynamoTestDocumentSlug,
+                           TestDocument,DynamoTestCustomIndex)
+
 from valley.exceptions import ValidationException
-
-
-class TestDocument(Document):
-    name = CharProperty(
-        required=True,
-        unique=True,
-        min_length=5,
-        max_length=20)
-    last_updated = DateTimeProperty(auto_now=True)
-    date_created = DateProperty(auto_now_add=True)
-    is_active = BooleanProperty(default_value=True)
-    no_subscriptions = IntegerProperty(
-        default_value=1, min_value=1, max_value=20)
-    gpa = FloatProperty()
-
-    def __unicode__(self):
-        return self.name
-
-    class Meta:
-        use_db = 'dynamodb'
-        handler = docb_handler
-
-
-class BaseTestDocumentSlug(TestDocument):
-    slug = CharProperty(required=True, unique=True)
-    email = CharProperty(required=True, unique=True)
-    city = CharProperty(required=True, index=True)
-
-
-class DynamoTestDocumentSlug(BaseTestDocumentSlug):
-
-    class Meta:
-        use_db = 'dynamodb'
-        handler = docb_handler
-
-
-class DynamoTestCustomIndex(TestDocument):
-    slug = CharProperty(required=True, unique=True)
-    email = CharProperty(required=True, unique=True)
-    city = CharProperty(required=True, index=True, index_name='custom-index')
 
 
 class DocumentTestCase(DocbTestCase):
 
+    doc_class = TestDocument
+
     def test_default_values(self):
-        obj = TestDocument(name='Fred')
+        obj = self.doc_class(name='Fred')
         self.assertEqual(obj.is_active, True)
         self.assertEqual(obj._data.get('is_active'), True)
         self.assertEqual(obj.date_created, datetime.date.today())
@@ -80,7 +40,7 @@ class DocumentTestCase(DocbTestCase):
         self.assertEqual(obj._index_change_list,['dynamodb:dynamotestdocumentslug:indexes:name:Brian'])
 
     def test_validate_valid(self):
-        t1 = TestDocument(
+        t1 = self.doc_class(
             name='DNSly',
             is_active=False,
             no_subscriptions=2,
@@ -88,35 +48,35 @@ class DocumentTestCase(DocbTestCase):
         t1.validate()
 
     def test_validate_boolean(self):
-        t2 = TestDocument(name='Google', is_active='Gone', gpa=4.0)
+        t2 = self.doc_class(name='Google', is_active='Gone', gpa=4.0)
         with self.assertRaises(ValidationException) as vm:
             t2.validate()
         self.assertEqual(str(vm.exception),
                          'is_active: This value should be True or False.')
 
     def test_validate_datetime(self):
-        t2 = TestDocument(name='Google', gpa=4.0, last_updated='today')
+        t2 = self.doc_class(name='Google', gpa=4.0, last_updated='today')
         with self.assertRaises(ValidationException) as vm:
             t2.validate()
         self.assertEqual(str(vm.exception),
                          'last_updated: This value should be a valid datetime object.')
 
     def test_validate_date(self):
-        t2 = TestDocument(name='Google', gpa=4.0, date_created='today')
+        t2 = self.doc_class(name='Google', gpa=4.0, date_created='today')
         with self.assertRaises(ValidationException) as vm:
             t2.validate()
         self.assertEqual(str(vm.exception),
                          'date_created: This value should be a valid date object.')
 
     def test_validate_integer(self):
-        t2 = TestDocument(name='Google', gpa=4.0, no_subscriptions='seven')
+        t2 = self.doc_class(name='Google', gpa=4.0, no_subscriptions='seven')
         with self.assertRaises(ValidationException) as vm:
             t2.validate()
         self.assertEqual(str(vm.exception),
                          'no_subscriptions: This value should be an integer')
 
     def test_validate_float(self):
-        t2 = TestDocument(name='Google', gpa='seven')
+        t2 = self.doc_class(name='Google', gpa='seven')
         with self.assertRaises(ValidationException) as vm:
             t2.validate()
         self.assertEqual(str(vm.exception),
@@ -136,7 +96,9 @@ class DynamoTestCase(DocbTestCase):
 
     doc_class = DynamoTestDocumentSlug
 
+
     def setUp(self):
+        self.pre_setUp()
         self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.2,
                                  email='goo@sons.com', city="Durham")
         self.t1.save()
@@ -226,6 +188,7 @@ class DynamoTestCase(DocbTestCase):
         os.remove('test-backup.json')
 
     def test_s3_backup(self):
+        self.doc_class()._s3.create_bucket(Bucket=env('S3_BUCKET_TEST'))
         self.doc_class().backup(
             's3://{}/kev/test-backup.json'.format(env('S3_BUCKET_TEST')))
         dc = self.doc_class()
@@ -256,10 +219,8 @@ class DynamoIndexTestCase(DocbTestCase):
 
     def test_index_name_fail(self):
         qs = self.doc_class.objects().filter({'city': 'Durham'})
-        with self.assertRaises(ClientError) as context:
+        with self.assertRaises(ValueError) as context:
             list(qs)
-        self.assertTrue('table does not have the specified index' in \
-                        context.exception.response['Error']['Message'])
 
     @unittest.skip("no reliable way to check if an index is 'ACTIVE'")
     def test_index_name_success(self):

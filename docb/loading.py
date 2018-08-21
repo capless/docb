@@ -1,10 +1,7 @@
 import valley
-import sammy as sm
 import docb.document
 import docb.properties
 import docb.utils
-
-
 
 
 class DocbHandler(object):
@@ -31,8 +28,11 @@ class DocbHandler(object):
     def add_docs(self,docs,db_label):
         if isinstance(docs,docb.document.Document):
             self.doc_list[db_label].append(docs)
+            docs.Meta.handler = self
         elif isinstance(docs,(set,list,tuple)):
             self.doc_list[db_label].extend(docs)
+            for i in docs:
+                i.Meta.handler = self
 
     def get_index_names(self,db_label):
         indexes = dict()
@@ -52,5 +52,5 @@ class DocbHandler(object):
                                             table_config,indexes)
 
     def build_cf_template(self,resource_name,table_name,db_label):
-        return docb.utils.build_cf_template(resource_name,table_name,
-                                            self.build_cf_resource(db_label))
+        return docb.utils.build_cf_template(
+            self.build_cf_resource(resource_name,table_name,db_label))

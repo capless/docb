@@ -21,16 +21,22 @@ class DynamoDB(object):
     doc_id_string = '{doc_id}:id:{backend_id}:{class_name}'
     index_id_string = ''
 
-    def __init__(self, **kwargs):
+    def __init__(self,table_obj=None, **kwargs):
         self._kwargs = kwargs
-        self._dynamodb_cache = None
+        if table_obj != None:
+            self._dynamodb_cache = table_obj
+        else:
+            self._dynamodb_cache = None
 
 
     def delete(self, doc_obj):
-        self._dynamodb.delete_item(Key={'_id': doc_obj._data['_id']})
+        self._dynamodb.delete_item(Key={'_id': doc_obj._data['_id'],
+                                '_doc_type':doc_obj._data['_doc_type']})
 
     def get(self, doc_obj, doc_id):
-        response = self._dynamodb.get_item(Key={'_id': doc_obj.get_doc_id(doc_id)})
+
+        response = self._dynamodb.get_item(Key={'_id': doc_obj.get_doc_id(doc_id),
+                                        '_doc_type':doc_obj.__name__})
         doc = response.get('Item', None)
         if not doc:
             raise DocNotFoundError
@@ -93,7 +99,8 @@ class DynamoDB(object):
         while True:
             response = self._dynamodb.scan(**kwargs)
             for doc in response['Items']:
-                self._dynamodb.delete_item(Key={'_id': doc['_id']})
+                self._dynamodb.delete_item(Key={'_id': doc['_id'],
+                                        '_doc_type':doc['_doc_type']})
             if 'LastEvaluatedKey' not in response:
                 break
             else:
