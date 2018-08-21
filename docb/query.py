@@ -96,9 +96,11 @@ class QuerySetMixin(object):
 class QuerySet(QuerySetMixin):
 
     def filter(self, q):
+        q.update({'_doc_type':self._doc_class.__name__})
         return QuerySet(self._doc_class, q, self.q)
 
     def get(self, q):
+        q.update({'_doc_type': self._doc_class.__name__})
         qs = QuerySet(self._doc_class, q, self.q)
         if len(qs) > 1:
             raise QueryError(
