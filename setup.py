@@ -7,7 +7,7 @@ def parse_requirements(filename):
     return [line for line in lineiter if line and not line.startswith("#")]
 
 
-version = '0.13.0'
+version = '0.14.0'
 
 LONG_DESCRIPTION = """
 =======================
