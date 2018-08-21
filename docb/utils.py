@@ -50,7 +50,6 @@ def build_cf_resource(resource_name,table_name,table_config,indexes):
         {'AttributeName': v['name'], 'AttributeType': v['type']}
         for k, v in indexes]
     attr_defs.append({'AttributeName': '_id', 'AttributeType': 'S'})
-    attr_defs.append({'AttributeName': '_doc_type', 'AttributeType': 'S'})
     return sm.DynamoDBTable(
         name=resource_name,
         TableName=table_name,

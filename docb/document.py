@@ -66,14 +66,20 @@ class BaseDocument(BaseSchema):
         self.pk = self.id
 
     def get_indexed_props(self):
-        index_list = []
+        index_list = ['_doc_type']
         for key, prop in list(self._base_properties.items()):
             if prop.index:
                 index_list.append(key)
         return index_list
 
     def get_indexed_props_dict(self):
-        indexes = {}
+        indexes = {
+            self._db.default_index_name.format('_doc_type'):{
+                'type':'S',
+                'name':'_doc_type',
+                'key_type':'HASH'
+            }
+        }
         for key, prop in list(self._base_properties.items()):
             if prop.index:
                 indexes[self._db.default_index_name.format(key)] = {
