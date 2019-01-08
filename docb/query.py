@@ -37,13 +37,14 @@ class QuerySetMixin(object):
     query_type = None
 
     def __init__(self, doc_class, q=None, parent_q=None, global_index=False, index_name=None, sort_attr=None,
-                 sort_reverse=False):
+                 sort_reverse=False, limit=None):
         self.parent_q = parent_q
         self._result_cache = None
         self._doc_class = doc_class
         self.q = q
         self.sort_attr = sort_attr
         self.sort_reverse = sort_reverse
+        self.limit = limit
         self.global_index = global_index
         self.index_name = index_name
         self.evaluated = False
@@ -101,13 +102,13 @@ class QuerySetMixin(object):
 
 class QuerySet(QuerySetMixin):
 
-    def filter(self, q, sort_attr=None, sort_reverse=False):
+    def filter(self, q, sort_attr=None, sort_reverse=False, limit=None):
         q.update({'_doc_type': self._doc_class.__name__})
-        return QuerySet(self._doc_class, q, self.q, sort_attr=sort_attr, sort_reverse=sort_reverse)
+        return QuerySet(self._doc_class, q, self.q, sort_attr=sort_attr, sort_reverse=sort_reverse, limit=limit)
 
-    def gfilter(self, q, index_name=None, sort_attr=None, sort_reverse=False):
+    def gfilter(self, q, index_name=None, sort_attr=None, sort_reverse=False, limit=None):
         return QuerySet(self._doc_class, q, self.q, global_index=True, index_name=index_name, sort_attr=sort_attr,
-                        sort_reverse=sort_reverse)
+                        sort_reverse=sort_reverse, limit=limit)
 
     def get(self, q):
         q.update({'_doc_type': self._doc_class.__name__})
@@ -121,9 +122,10 @@ class QuerySet(QuerySetMixin):
             raise QueryError('This query did not return a result.')
         return qs[0]
 
-    def all(self, sort_attr=None, sort_reverse=False):
+    def all(self, sort_attr=None, sort_reverse=False, limit=None):
         return QuerySet(self._doc_class,
-                        {'_doc_type': self._doc_class.__name__}, self.q, sort_attr=sort_attr, sort_reverse=sort_reverse)
+                        {'_doc_type': self._doc_class.__name__}, self.q, sort_attr=sort_attr,
+                        sort_reverse=sort_reverse, limit=limit)
 
     def evaluate(self):
         return self._doc_class().evaluate(self)

@@ -1,4 +1,3 @@
-import copy
 import datetime
 import decimal
 import hashlib
@@ -247,31 +246,25 @@ class BaseDocument(BaseSchema):
         return cls.query_manager(cls)
 
     # Indexing Methods
-    def get_doc_list(self, filters_list):
-        result = []
-        query_params = self.build_query(filters_list)
-        response = self._dynamodb.query(**query_params)
-        result = response['Items']
-        while 'LastEvaluatedKey' in response:
-            query_params.update(
-                {'ExclusiveStartKey': response['LastEvaluatedKey']})
-            response = self._dynamodb.query(**query_params)
-            result.extend(response['Items'])
-        return result
-
-    # Indexing Methods
     def get_doc_list(self, filters):
-        result = []
         query_params = self.build_query(filters)
         response = self._dynamodb.query(**query_params)
         result = response['Items']
-        while 'LastEvaluatedKey' in response:
-            query_params.update(
-                {'ExclusiveStartKey': response['LastEvaluatedKey']})
-            response = self._dynamodb.query(**query_params)
-            result.extend(response['Items'])
+        if filters.limit:
+            while 'LastEvaluatedKey' in response and len(result) < filters.limit:
+                result = self.get_more_docs(response, query_params, result)
+        else:
+            while 'LastEvaluatedKey' in response:
+                result = self.get_more_docs(response, query_params, result)
         if filters.sort_attr:
             return sorted(result, key=itemgetter(filters.sort_attr), reverse=filters.sort_reverse)
+        return result
+
+    def get_more_docs(self, response, query_params, result):
+        query_params.update(
+            {'ExclusiveStartKey': response['LastEvaluatedKey']})
+        response = self._dynamodb.query(**query_params)
+        result.extend(response['Items'])
         return result
 
     def add_expressions(self, expressions):
@@ -314,12 +307,13 @@ class BaseDocument(BaseSchema):
                 return prop_obj.index_name or self.default_index_name.format(prop), prop, v
         raise QueryError('All gfilter queries must have a global secondary index that uses the Equals condition.')
 
-    def build_query_params(self, filter_expressions, key_condition_expressions, index_name):
+    def build_query_params(self, filter_expressions, key_condition_expressions, index_name, limit=None):
         """
         Returns a dictionary that will be used as the keyword arguments for a query.
         :param filter_expressions: List of filter expressions (filter)
         :param key_condition_expressions: List of key expressions (filter)
         :param index_name: The index name we're using to query the DB
+        :param limit: This value limits the number of records returned
         :return: query_params (dict)
         """
         query_params = dict()
@@ -329,6 +323,8 @@ class BaseDocument(BaseSchema):
             query_params['KeyConditionExpression'] = self.add_expressions(key_condition_expressions)
         if index_name not in ('_doc_type-index', '_id-index', 'fuzzy'):
             query_params['IndexName'] = index_name
+        if isinstance(limit, (float, int, decimal.Decimal)):
+            query_params['Limit'] = limit
         return query_params
 
     def build_query(self, filters):
@@ -368,8 +364,7 @@ class BaseDocument(BaseSchema):
                 filter_expressions.append(cond(Attr(prop)))
             else:
                 filter_expressions.append(cond(Attr(prop), v))
-
-        return self.build_query_params(filter_expressions, key_condition_expressions, index_name)
+        return self.build_query_params(filter_expressions, key_condition_expressions, index_name, limit=filters.limit)
 
     #####################
     # Document Prep     #
@@ -514,8 +509,6 @@ class BaseDocument(BaseSchema):
             # are using Lambda
             self._s3.Object(bucket, file_path).put(
                 Body=json.dumps(json_docs))
-
-
 
     ########################
     # Unit Tests           #
