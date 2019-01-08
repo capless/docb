@@ -3,7 +3,6 @@ import unittest
 import datetime
 import time
 
-from botocore.exceptions import ClientError
 from envs import env
 
 from docb.testcase import (DocbTestCase,DynamoTestDocumentSlug,
@@ -37,7 +36,6 @@ class DocumentTestCase(DocbTestCase):
         obj = DynamoTestDocumentSlug(name='Brian', slug='brian', email='brian@host.com',
                                  city='Greensboro', gpa=4.0)
         obj.name = 'Tariq'
-        self.assertEqual(obj._index_change_list,['dynamodb:dynamotestdocumentslug:indexes:name:Brian'])
 
     def test_validate_valid(self):
         t1 = self.doc_class(
@@ -96,9 +94,8 @@ class DynamoTestCase(DocbTestCase):
 
     doc_class = DynamoTestDocumentSlug
 
-
     def setUp(self):
-        self.pre_setUp()
+        super(DynamoTestCase, self).setUp()
         self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.2,
                                  email='goo@sons.com', city="Durham")
         self.t1.save()
@@ -110,7 +107,7 @@ class DynamoTestCase(DocbTestCase):
         self.t3.save()
 
     def test_get(self):
-        obj = self.doc_class.get(self.t1.id)
+        obj = self.doc_class.objects().get({'_id':self.t1._id})
         self.assertEqual(obj._id, self.t1._id)
 
     def test_flush_db(self):
@@ -120,10 +117,10 @@ class DynamoTestCase(DocbTestCase):
 
     def test_delete(self):
         qs = self.doc_class.objects().filter({'city': 'Durham'})
-        self.assertEqual(2, qs.count())
+        self.assertEqual(2, len(qs))
         qs[0].delete()
         qs = self.doc_class.objects().filter({'city': 'Durham'})
-        self.assertEqual(1, qs.count())
+        self.assertEqual(1, len(qs))
 
     def test_all(self):
         docs = list(self.doc_class.objects().all())
@@ -142,33 +139,8 @@ class DynamoTestCase(DocbTestCase):
     def test_queryset_chaining(self):
         qs = self.doc_class.objects().filter(
             {'name': 'Goo and Sons'}).filter({'city': 'Durham'})
-        self.assertEqual(1, qs.count())
         self.assertEqual(self.t1.name, qs[0].name)
-
-    @unittest.skip("Takes more than 10 min to complete.")
-    def test_more_than_hundred_objects(self):
-        # 1 MB limit for scan and query
-        # http://boto3.readthedocs.io/en/latest/reference/services/dynamodb.html#DynamoDB.Table.query
-        # http://boto3.readthedocs.io/en/latest/reference/services/dynamodb.html#DynamoDB.Table.scan
-        count = 4630
-        for i in range(count):
-            doc = self.doc_class(name='Object_{0}'.format(i), slug='object-{0}'.format(i), gpa=4.6,
-                                 email='object_{0}@ymca.com'.format(i), city='Durham')
-            doc.save()
-        qs = self.doc_class.objects().all()
-        self.assertEqual(count + 3, len(list(qs)))
-        for doc in list(qs):
-            self.assertIn(doc.city, ['Durham', 'Charlotte'])
-        qs = self.doc_class.objects().filter({'city': 'Durham'})
-        self.assertEqual(count + 2, qs.count())
-        qs = self.doc_class.all(limit=count)
-        self.assertEqual(count, len(list(qs)))
-        qs = self.doc_class.all(skip=1)
-        self.assertEqual(count + 2, len(list(qs)))
-        qs = self.doc_class.all(limit=3)
-        self.assertEqual(3, len(list(qs)))
-        qs = self.doc_class.all(limit=count, skip=1)
-        self.assertEqual(count - 1, len(list(qs)))
+        self.assertEqual(1, len(qs))
 
     def test_local_backup(self):
 
@@ -187,63 +159,17 @@ class DynamoTestCase(DocbTestCase):
         self.assertEqual(len(list(self.doc_class.objects().all())), 3)
         os.remove('test-backup.json')
 
-    def test_s3_backup(self):
-        self.doc_class()._s3.create_bucket(Bucket=env('S3_BUCKET_TEST'))
-        self.doc_class().backup(
-            's3://{}/kev/test-backup.json'.format(env('S3_BUCKET_TEST')))
-        dc = self.doc_class()
-        self.assertEqual(3,
-            len(dc.get_restore_json(
-                *dc.get_path_type('s3://{}/kev/test-backup.json'.format(
-                    env('S3_BUCKET_TEST'))))))
-
-    def test_s3_restore(self):
-
-        self.doc_class().backup(
-            's3://{}/kev/test-backup.json'.format(env('S3_BUCKET_TEST')))
-        self.doc_class().flush_db()
-        self.assertEqual(len(list(self.doc_class.objects().all())),0)
-        self.doc_class().restore('s3://{}/kev/test-backup.json'.format(env('S3_BUCKET_TEST')))
-        self.assertEqual(len(list(self.doc_class.objects().all())), 3)
-
 
 class DynamoIndexTestCase(DocbTestCase):
     doc_class = DynamoTestCustomIndex
 
     def setUp(self):
-        self.doc_class().flush_db()
-        self.db = self.doc_class.get_db()._dynamodb
+        super(DynamoIndexTestCase, self).setUp()
+        self.db = self.doc_class.get_db()
         self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.2,
                                  email='goo@sons.com', city="Durham")
         self.t1.save()
 
-    def test_index_name_fail(self):
-        qs = self.doc_class.objects().filter({'city': 'Durham'})
-        with self.assertRaises(ValueError) as context:
-            list(qs)
-
-    @unittest.skip("no reliable way to check if an index is 'ACTIVE'")
-    def test_index_name_success(self):
-        self.check_index('city-index', 'city')
-        self.rename_index('city', 'city-index', 'custom-index')
-        self.check_index('custom-index', 'city')
-        qs = self.doc_class.objects().filter({'city': 'Durham'})
-        self.assertEqual(1, qs.count())
-        self.rename_index('city', 'custom-index', 'city-index')
-
-    def rename_index(self, attr_name, old_index_name, new_index_name):
-        index_schema = self.check_index(old_index_name, attr_name)
-        #index_schema = {'ProvisionedThroughput': {'ReadCapacityUnits':1000, 'WriteCapacityUnits': 1000}}
-        self.db.update(GlobalSecondaryIndexUpdates=[{'Delete': {'IndexName': old_index_name}}])
-        self.db.wait_until_exists()
-        time.sleep(3)
-        self.db.update(AttributeDefinitions=[{u'AttributeName': attr_name, u'AttributeType': u'S'}],
-            GlobalSecondaryIndexUpdates=[
-            {'Create': {'IndexName': new_index_name,
-                        'Projection': {'ProjectionType': 'ALL'},
-                        'ProvisionedThroughput': index_schema['ProvisionedThroughput'],
-                        'KeySchema': [{'KeyType': 'HASH', 'AttributeName': attr_name}]}}])
-        time.sleep(3)
 
     def check_index(self, index_name, attr_name):
         index_schema = self.db.global_secondary_indexes
@@ -254,7 +180,6 @@ class DynamoIndexTestCase(DocbTestCase):
                 index_info = index
                 detected = True
         self.assertTrue(detected)
-        #self.assertEqual(index_info['IndexStatus'], 'ACTIVE')
         self.assertEqual(index_info['KeySchema'][0]['AttributeName'], attr_name)
         return index_info
 

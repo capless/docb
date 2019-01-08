@@ -15,7 +15,9 @@ class BaseProperty(VBaseProperty):
         self,
         default_value=None,
         required=False,
-        index=False,
+        global_index=False,
+
+        index_name=None,
         unique=False,
         write_capacity=None,
         read_capacity=None,
@@ -29,13 +31,15 @@ class BaseProperty(VBaseProperty):
                                            validators=validators,
                                            verbose_name=verbose_name,
                                            **kwargs)
-        self.index = index
+        self.global_index = global_index
+
         self.unique = unique
+        self.index_name = index_name
         self.key_type = key_type
         self.read_capacity = read_capacity
         self.write_capacity = write_capacity
-        if unique:
-            self.index = True
+        if self.global_index is True:
+            self.key_type = 'HASH'
 
 
 class CharProperty(CharVariableMixin,BaseProperty):
