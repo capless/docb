@@ -33,7 +33,6 @@ CONDITIONS = {
     'between': Between,
     'begins': BeginsWith,
     'contains': Contains,
-    'size': Size,
     'attr_type': AttributeType,
     'attr_exists': AttributeExists,
     'attr_not_exists': AttributeNotExists

@@ -144,6 +144,12 @@ class DynamoTestCase(DocbTestCase):
         self.assertEqual(self.t1.name, qs[0].name)
         self.assertEqual(1, len(qs))
 
+    def test_sort(self):
+        qs = self.doc_class.objects().all(sort_attr='name')
+        self.assertEqual('Goo and Sons', qs[0].name)
+        qs = self.doc_class.objects().all(sort_attr='name', sort_reverse=True)
+        self.assertEqual('Lakewood YMCA', qs[0].name)
+
     def test_filter_limit(self):
         qs = self.doc_class.objects().filter({'city': 'Durham'}, limit=2)
         self.assertEqual(2, len(qs))
@@ -236,6 +242,13 @@ class ConditionsTestCase(DocbTestCase):
         qs = self.doc_class.objects().filter({'gpa__attr_not_exists': True})
         self.assertEqual(0, len(qs))
 
+    def test_attr_type(self):
+        qs = self.doc_class.objects().filter({'hometown__attr_type': 'S'})
+        self.assertEqual(5, len(qs))
+        qs = self.doc_class.objects().filter({'hometown__attr_type': 'N'})
+        self.assertEqual(0, len(qs))
+        qs = self.doc_class.objects().filter({'gpa__attr_type': 'N'})
+        self.assertEqual(5, len(qs))
 
 
 class DynamoIndexTestCase(DocbTestCase):
