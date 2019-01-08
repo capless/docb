@@ -1,11 +1,12 @@
 language: python
 cache: pip
+services:
+  - docker
 python:
   - "3.6"
 
 # command to install dependencies
 install:
-  - "pip install -r requirements.txt"
-  - "pip install -r test_requirements.txt"
+  - "docker-compose run --rm web /code/ve/bin/python -m unittest"
 # command to run tests
 script: nosetests
