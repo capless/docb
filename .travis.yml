@@ -12,7 +12,6 @@ before_install:
   - chmod +x docker-compose
   - sudo mv docker-compose /usr/local/bin
 # command to install dependencies
-install:
-  - "docker-compose run --rm web /code/ve/bin/python -m unittest"
+
 # command to run tests
-script: nosetests
+script: "docker-compose run --rm web /code/ve/bin/python -m unittest"
