@@ -1,12 +1,10 @@
+import decimal
 import os
 import unittest
 import datetime
-import time
 
-from envs import env
 
-from docb.testcase import (DocbTestCase,DynamoTestDocumentSlug,
-                           TestDocument,DynamoTestCustomIndex)
+from docb.testcase import (DocbTestCase, DynamoTestDocumentSlug, TestDocument, DynamoTestCustomIndex, Student)
 
 from valley.exceptions import ValidationException
 
@@ -102,7 +100,7 @@ class DynamoTestCase(DocbTestCase):
         self.t2 = self.doc_class(name='Great Mountain', slug='great-mountain', gpa=3.2,
                                  email='great@mountain.com', city='Charlotte')
         self.t2.save()
-        self.t3 = self.doc_class(name='Lakewoood YMCA', slug='lakewood-ymca', gpa=3.2,
+        self.t3 = self.doc_class(name='Lakewood YMCA', slug='lakewood-ymca', gpa=3.2,
                                  email='lakewood@ymca.com', city='Durham')
         self.t3.save()
 
@@ -128,6 +126,10 @@ class DynamoTestCase(DocbTestCase):
         for doc in docs:
             self.assertIn(doc.city, ['Durham', 'Charlotte'])
 
+    def test_all_limit(self):
+        docs = list(self.doc_class.objects().all(limit=2))
+        self.assertEqual(2, len(docs))
+
     def test_non_unique_filter(self):
         qs = self.doc_class.objects().filter({'city': 'Durham'})
         self.assertEqual(2, qs.count())
@@ -141,6 +143,10 @@ class DynamoTestCase(DocbTestCase):
             {'name': 'Goo and Sons'}).filter({'city': 'Durham'})
         self.assertEqual(self.t1.name, qs[0].name)
         self.assertEqual(1, len(qs))
+
+    def test_filter_limit(self):
+        qs = self.doc_class.objects().filter({'city': 'Durham'}, limit=2)
+        self.assertEqual(2, len(qs))
 
     def test_local_backup(self):
 
@@ -160,6 +166,78 @@ class DynamoTestCase(DocbTestCase):
         os.remove('test-backup.json')
 
 
+class ConditionsTestCase(DocbTestCase):
+
+    doc_class = Student
+
+    def setUp(self):
+        super(ConditionsTestCase, self).setUp()
+        self.t4 = self.doc_class(first_name='Brian', last_name='Jenkins', slug='brian-j', gpa=3.9,
+                                 email='brian@docb.com', hometown="Durham", high_school='Jordan')
+        self.t4.save()
+        self.t5 = self.doc_class(first_name='George', last_name='Jenkins', slug='george-j', gpa=2.5,
+                                 email='george@capless.com', hometown="Durham", high_school='Hillside')
+        self.t5.save()
+        self.t6 = self.doc_class(first_name='Katie', last_name='Hogans', slug='katie', gpa=2.2,
+                                 email='katie@capless.com', hometown="Dayton", high_school='Southern')
+        self.t6.save()
+        self.t6 = self.doc_class(first_name='Kim', last_name='Hopkins', slug='kim', gpa=4.0,
+                                 email='kim@autogy.com', hometown="Charlotte", high_school='Hillside')
+        self.t6.save()
+        self.t7 = self.doc_class(first_name='Joe', last_name='Rogans', slug='joe', gpa=3.0,
+                                 email='joe@autogy.com', hometown="Pittsburgh", high_school='Riverside')
+        self.t7.save()
+
+    def test_contains(self):
+        qs = self.doc_class.objects().filter({'hometown__contains':'Du'})
+        self.assertEqual(2, len(qs))
+
+    def test_begins_with(self):
+        qs = self.doc_class.objects().filter({'first_name__begins':'K'})
+        self.assertEqual(2, len(qs))
+
+    def test_less_than(self):
+        qs = self.doc_class.objects().filter({'gpa__lt': 3})
+        self.assertEqual(2, len(qs))
+
+    def test_less_than_equal(self):
+        qs = self.doc_class.objects().filter({'gpa__lte': 3})
+        self.assertEqual(3, len(qs))
+
+    def test_greater_than(self):
+        qs = self.doc_class.objects().filter({'gpa__gt': decimal.Decimal(2.5)})
+        self.assertEqual(3, len(qs))
+
+    def test_greater_than_equal(self):
+        qs = self.doc_class.objects().filter({'gpa__gte': decimal.Decimal(2.5)})
+        self.assertEqual(4, len(qs))
+
+    def test_not_equal(self):
+        qs = self.doc_class.objects().filter({'gpa__ne': decimal.Decimal(2.5)})
+        self.assertEqual(4, len(qs))
+
+    def test_in(self):
+        qs = self.doc_class.objects().filter({'last_name__in': ('Rogans', 'Jenkins')})
+        self.assertEqual(3, len(qs))
+
+    def test_between(self):
+        qs = self.doc_class.objects().filter({'gpa__between': (2, 3)})
+        self.assertEqual(3, len(qs))
+
+    def test_attr_exist(self):
+        qs = self.doc_class.objects().filter({'country__attr_exists': True})
+        self.assertEqual(0, len(qs))
+        qs = self.doc_class.objects().filter({'gpa__attr_exists': True})
+        self.assertEqual(5, len(qs))
+
+    def test_not_attr_exist(self):
+        qs = self.doc_class.objects().filter({'country__attr_not_exists': True})
+        self.assertEqual(5, len(qs))
+        qs = self.doc_class.objects().filter({'gpa__attr_not_exists': True})
+        self.assertEqual(0, len(qs))
+
+
+
 class DynamoIndexTestCase(DocbTestCase):
     doc_class = DynamoTestCustomIndex
 
@@ -169,7 +247,6 @@ class DynamoIndexTestCase(DocbTestCase):
         self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.2,
                                  email='goo@sons.com', city="Durham")
         self.t1.save()
-
 
     def check_index(self, index_name, attr_name):
         index_schema = self.db.global_secondary_indexes
@@ -182,7 +259,6 @@ class DynamoIndexTestCase(DocbTestCase):
         self.assertTrue(detected)
         self.assertEqual(index_info['KeySchema'][0]['AttributeName'], attr_name)
         return index_info
-
 
 
 if __name__ == '__main__':

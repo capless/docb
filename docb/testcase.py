@@ -59,6 +59,19 @@ class DynamoTestCustomIndex(TestDocument):
                                         write_capacity=2, read_capacity=2)
 
 
+class Student(docb.document.Document):
+    first_name = docb.properties.CharProperty(required=True)
+    last_name = docb.properties.CharProperty(required=True)
+    slug = docb.properties.CharProperty(required=True,unique=True)
+    email = docb.properties.CharProperty(required=True, unique=True)
+    gpa = docb.properties.FloatProperty(global_index=True)
+    hometown = docb.properties.CharProperty(required=True)
+    high_school = docb.properties.CharProperty()
+
+    class Meta:
+        use_db = 'dynamodb'
+
+
 class DocbTestCase(unittest.TestCase):
     doc_class = TestDocument
 
