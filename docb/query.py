@@ -1,17 +1,21 @@
+from statistics import mean
+
 from .exceptions import QueryError
 
 REPR_OUTPUT_SIZE = 20
 
 
-def combine_list(a, b):
+def create_list(a):
     if isinstance(a, (set, tuple, list)):
         a = list(a)
     else:
         a = [a]
-    if isinstance(b, (set, tuple, list)):
-        b = list(b)
-    else:
-        b = [b]
+    return a
+
+
+def combine_list(a, b):
+    a = create_list(a)
+    b = create_list(b)
     a.extend(b)
     return a
 
@@ -24,7 +28,7 @@ def combine_dicts(a, b, op=combine_list):
     if isinstance(doc_type, list):
         doc_type = set(doc_type)
         if len(doc_type) == 1:
-            doc_type = doc_type[0]
+            doc_type = tuple(doc_type)[0]
             z['_doc_type'] = doc_type
     return z
 
@@ -32,30 +36,23 @@ def combine_dicts(a, b, op=combine_list):
 class QuerySetMixin(object):
     query_type = None
 
-    def __init__(self, doc_class, q=None, parent_q=None):
+    def __init__(self, doc_class, q=None, parent_q=None, global_index=False, index_name=None, sort_attr=None,
+                 sort_reverse=False, limit=None):
         self.parent_q = parent_q
         self._result_cache = None
         self._doc_class = doc_class
         self.q = q
+        self.sort_attr = sort_attr
+        self.sort_reverse = sort_reverse
+        self.limit = limit
+        self.global_index = global_index
+        self.index_name = index_name
         self.evaluated = False
-        self._db = self._doc_class.get_db()
         if q and parent_q:
             self.q = self.combine_qs()
 
     def combine_qs(self):
         return combine_dicts(self.parent_q, self.q)
-
-    def prepare_filters(self):
-        filter_list = []
-        for k, v in list(self.q.items()):
-            if isinstance(v, list):
-                for index_v in v:
-                    filter_list.append(
-                        self._doc_class.get_index_name(
-                            k, index_v))
-            else:
-                filter_list.append(self._doc_class.get_index_name(k, v))
-        return filter_list
 
     def __len__(self):
         self._fetch_all()
@@ -66,7 +63,7 @@ class QuerySetMixin(object):
         if len(data) > REPR_OUTPUT_SIZE:
             data[-1] = "...(remaining elements truncated)..."
         return repr(data)
-    
+
     def __iter__(self):
         self._fetch_all()
         return iter(self._result_cache)
@@ -77,6 +74,16 @@ class QuerySetMixin(object):
 
     def count(self):
         return len(list(self.evaluate()))
+
+    def attr_list(self, attr):
+        self._doc_class._base_properties[attr]
+        return [getattr(i, attr) for i in self.evaluate()]
+
+    def mean(self, attr):
+        return mean(self.attr_list(attr))
+
+    def sum(self, attr):
+        return sum(self.attr_list(attr))
 
     def __bool__(self):
         self._fetch_all()
@@ -95,28 +102,33 @@ class QuerySetMixin(object):
 
 class QuerySet(QuerySetMixin):
 
-    def filter(self, q):
-        q.update({'_doc_type':self._doc_class.__name__})
-        return QuerySet(self._doc_class, q, self.q)
+    def filter(self, q, sort_attr=None, sort_reverse=False, limit=None):
+        q.update({'_doc_type': self._doc_class.__name__})
+        return QuerySet(self._doc_class, q, self.q, sort_attr=sort_attr, sort_reverse=sort_reverse, limit=limit)
+
+    def gfilter(self, q, index_name=None, sort_attr=None, sort_reverse=False, limit=None):
+        return QuerySet(self._doc_class, q, self.q, global_index=True, index_name=index_name, sort_attr=sort_attr,
+                        sort_reverse=sort_reverse, limit=limit)
 
     def get(self, q):
         q.update({'_doc_type': self._doc_class.__name__})
         qs = QuerySet(self._doc_class, q, self.q)
         if len(qs) > 1:
             raise QueryError(
-                'This query should return exactly one result. Your query returned {0}'.format(
+                'This query should return exactly ' \
+                'one result. Your query returned {0}'.format(
                     len(qs)))
         if len(qs) == 0:
             raise QueryError('This query did not return a result.')
         return qs[0]
 
-    def all(self):
+    def all(self, sort_attr=None, sort_reverse=False, limit=None):
         return QuerySet(self._doc_class,
-            {'_doc_type':self._doc_class.__name__}, self.q)
+                        {'_doc_type': self._doc_class.__name__}, self.q, sort_attr=sort_attr,
+                        sort_reverse=sort_reverse, limit=limit)
 
     def evaluate(self):
-        filters_list = self.prepare_filters()
-        return self._doc_class.get_db().evaluate(filters_list, self._doc_class)
+        return self._doc_class().evaluate(self)
 
 
 class QueryManager(object):
@@ -125,5 +137,6 @@ class QueryManager(object):
         self._doc_class = cls
 
         self.filter = QuerySet(self._doc_class).filter
+        self.gfilter = QuerySet(self._doc_class).gfilter
         self.get = QuerySet(self._doc_class).get
         self.all = QuerySet(self._doc_class).all

@@ -1,5 +1,6 @@
 import sys
 import importlib
+import envs as e
 import sammy as sm
 import valley
 
@@ -13,7 +14,8 @@ class TableConfig(valley.contrib.Schema):
 
 
 class TableConnection(valley.contrib.Schema):
-    pass
+    table = valley.CharProperty(required=True)
+    endpoint_url = valley.CharProperty()
 
 
 def import_mod(imp):
@@ -45,32 +47,52 @@ def get_doc_type(klass):
     return klass.__name__
 
 
-def build_cf_resource(resource_name,table_name,table_config,indexes):
+def get_db_kwargs():
+    kwargs = dict()
+    endpoint_url  = e.env('DYNAMODB_ENDPOINT_URL')
+    if endpoint_url:
+        kwargs['endpoint_url'] = endpoint_url
+    return kwargs
+
+
+def build_cf_args(table_name, table_config, global_indexes, resource_name=None):
     attr_defs = [
         {'AttributeName': v['name'], 'AttributeType': v['type']}
-        for k, v in indexes]
+        for k, v in global_indexes]
+
     attr_defs.append({'AttributeName': '_id', 'AttributeType': 'S'})
-    return sm.DynamoDBTable(
-        name=resource_name,
-        TableName=table_name,
-        KeySchema=[{'AttributeName': '_id', 'KeyType': 'HASH'},
-                   {'AttributeName': '_doc_type', 'KeyType': 'RANGE'}],
-        GlobalSecondaryIndexes=[
+    attr_defs.append({'AttributeName': '_doc_type', 'AttributeType': 'S'})
+
+    args = {
+        'TableName':table_name,
+        'KeySchema':[{'AttributeName': '_doc_type', 'KeyType': 'HASH'},
+                   {'AttributeName': '_id', 'KeyType': 'RANGE'}],
+        'AttributeDefinitions':attr_defs,
+        'ProvisionedThroughput': {
+            'ReadCapacityUnits': table_config.read_capacity,
+            'WriteCapacityUnits': table_config.write_capacity
+        }
+    }
+    if len(global_indexes) > 0:
+        args['GlobalSecondaryIndexes'] = [
             {
                 'IndexName': k, 'KeySchema': [
                 {'AttributeName': v['name'], 'KeyType': v['key_type']}],
                 'Projection': {'ProjectionType': 'ALL'},
                 'ProvisionedThroughput': {
-                    'ReadCapacityUnits': table_config.secondary_read_capacity,
-                    'WriteCapacityUnits': table_config.secondary_write_capacity}
+                    'ReadCapacityUnits': table_config.read_capacity,
+                    'WriteCapacityUnits': table_config.read_capacity}
             }
-            for k, v in indexes
-        ],
-        AttributeDefinitions=attr_defs,
-        ProvisionedThroughput={
-            'ReadCapacityUnits': table_config.read_capacity,
-            'WriteCapacityUnits': table_config.write_capacity
-        }
+            for k, v in global_indexes
+        ]
+    if resource_name:
+        args['name'] = resource_name
+    return args
+
+
+def build_cf_resource(resource_name, table_name, table_config, global_indexes):
+    return sm.DynamoDBTable(
+        **build_cf_args(table_name, table_config, global_indexes, resource_name)
     )
 
 

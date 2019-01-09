@@ -1,13 +1,10 @@
+import decimal
 import os
 import unittest
 import datetime
-import time
 
-from botocore.exceptions import ClientError
-from envs import env
 
-from docb.testcase import (DocbTestCase,DynamoTestDocumentSlug,
-                           TestDocument,DynamoTestCustomIndex)
+from docb.testcase import (DocbTestCase, DynamoTestDocumentSlug, TestDocument, DynamoTestCustomIndex, Student)
 
 from valley.exceptions import ValidationException
 
@@ -37,7 +34,6 @@ class DocumentTestCase(DocbTestCase):
         obj = DynamoTestDocumentSlug(name='Brian', slug='brian', email='brian@host.com',
                                  city='Greensboro', gpa=4.0)
         obj.name = 'Tariq'
-        self.assertEqual(obj._index_change_list,['dynamodb:dynamotestdocumentslug:indexes:name:Brian'])
 
     def test_validate_valid(self):
         t1 = self.doc_class(
@@ -96,21 +92,20 @@ class DynamoTestCase(DocbTestCase):
 
     doc_class = DynamoTestDocumentSlug
 
-
     def setUp(self):
-        self.pre_setUp()
+        super(DynamoTestCase, self).setUp()
         self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.2,
                                  email='goo@sons.com', city="Durham")
         self.t1.save()
         self.t2 = self.doc_class(name='Great Mountain', slug='great-mountain', gpa=3.2,
                                  email='great@mountain.com', city='Charlotte')
         self.t2.save()
-        self.t3 = self.doc_class(name='Lakewoood YMCA', slug='lakewood-ymca', gpa=3.2,
+        self.t3 = self.doc_class(name='Lakewood YMCA', slug='lakewood-ymca', gpa=3.2,
                                  email='lakewood@ymca.com', city='Durham')
         self.t3.save()
 
     def test_get(self):
-        obj = self.doc_class.get(self.t1.id)
+        obj = self.doc_class.objects().get({'_id':self.t1._id})
         self.assertEqual(obj._id, self.t1._id)
 
     def test_flush_db(self):
@@ -120,16 +115,20 @@ class DynamoTestCase(DocbTestCase):
 
     def test_delete(self):
         qs = self.doc_class.objects().filter({'city': 'Durham'})
-        self.assertEqual(2, qs.count())
+        self.assertEqual(2, len(qs))
         qs[0].delete()
         qs = self.doc_class.objects().filter({'city': 'Durham'})
-        self.assertEqual(1, qs.count())
+        self.assertEqual(1, len(qs))
 
     def test_all(self):
         docs = list(self.doc_class.objects().all())
         self.assertEqual(3, len(docs))
         for doc in docs:
             self.assertIn(doc.city, ['Durham', 'Charlotte'])
+
+    def test_all_limit(self):
+        docs = list(self.doc_class.objects().all(limit=2))
+        self.assertEqual(2, len(docs))
 
     def test_non_unique_filter(self):
         qs = self.doc_class.objects().filter({'city': 'Durham'})
@@ -142,33 +141,18 @@ class DynamoTestCase(DocbTestCase):
     def test_queryset_chaining(self):
         qs = self.doc_class.objects().filter(
             {'name': 'Goo and Sons'}).filter({'city': 'Durham'})
-        self.assertEqual(1, qs.count())
         self.assertEqual(self.t1.name, qs[0].name)
+        self.assertEqual(1, len(qs))
 
-    @unittest.skip("Takes more than 10 min to complete.")
-    def test_more_than_hundred_objects(self):
-        # 1 MB limit for scan and query
-        # http://boto3.readthedocs.io/en/latest/reference/services/dynamodb.html#DynamoDB.Table.query
-        # http://boto3.readthedocs.io/en/latest/reference/services/dynamodb.html#DynamoDB.Table.scan
-        count = 4630
-        for i in range(count):
-            doc = self.doc_class(name='Object_{0}'.format(i), slug='object-{0}'.format(i), gpa=4.6,
-                                 email='object_{0}@ymca.com'.format(i), city='Durham')
-            doc.save()
-        qs = self.doc_class.objects().all()
-        self.assertEqual(count + 3, len(list(qs)))
-        for doc in list(qs):
-            self.assertIn(doc.city, ['Durham', 'Charlotte'])
-        qs = self.doc_class.objects().filter({'city': 'Durham'})
-        self.assertEqual(count + 2, qs.count())
-        qs = self.doc_class.all(limit=count)
-        self.assertEqual(count, len(list(qs)))
-        qs = self.doc_class.all(skip=1)
-        self.assertEqual(count + 2, len(list(qs)))
-        qs = self.doc_class.all(limit=3)
-        self.assertEqual(3, len(list(qs)))
-        qs = self.doc_class.all(limit=count, skip=1)
-        self.assertEqual(count - 1, len(list(qs)))
+    def test_sort(self):
+        qs = self.doc_class.objects().all(sort_attr='name')
+        self.assertEqual('Goo and Sons', qs[0].name)
+        qs = self.doc_class.objects().all(sort_attr='name', sort_reverse=True)
+        self.assertEqual('Lakewood YMCA', qs[0].name)
+
+    def test_filter_limit(self):
+        qs = self.doc_class.objects().filter({'city': 'Durham'}, limit=2)
+        self.assertEqual(2, len(qs))
 
     def test_local_backup(self):
 
@@ -187,63 +171,95 @@ class DynamoTestCase(DocbTestCase):
         self.assertEqual(len(list(self.doc_class.objects().all())), 3)
         os.remove('test-backup.json')
 
-    def test_s3_backup(self):
-        self.doc_class()._s3.create_bucket(Bucket=env('S3_BUCKET_TEST'))
-        self.doc_class().backup(
-            's3://{}/kev/test-backup.json'.format(env('S3_BUCKET_TEST')))
-        dc = self.doc_class()
-        self.assertEqual(3,
-            len(dc.get_restore_json(
-                *dc.get_path_type('s3://{}/kev/test-backup.json'.format(
-                    env('S3_BUCKET_TEST'))))))
 
-    def test_s3_restore(self):
+class ConditionsTestCase(DocbTestCase):
 
-        self.doc_class().backup(
-            's3://{}/kev/test-backup.json'.format(env('S3_BUCKET_TEST')))
-        self.doc_class().flush_db()
-        self.assertEqual(len(list(self.doc_class.objects().all())),0)
-        self.doc_class().restore('s3://{}/kev/test-backup.json'.format(env('S3_BUCKET_TEST')))
-        self.assertEqual(len(list(self.doc_class.objects().all())), 3)
+    doc_class = Student
+
+    def setUp(self):
+        super(ConditionsTestCase, self).setUp()
+        self.t4 = self.doc_class(first_name='Brian', last_name='Jenkins', slug='brian-j', gpa=3.9,
+                                 email='brian@docb.com', hometown="Durham", high_school='Jordan')
+        self.t4.save()
+        self.t5 = self.doc_class(first_name='George', last_name='Jenkins', slug='george-j', gpa=2.5,
+                                 email='george@capless.com', hometown="Durham", high_school='Hillside')
+        self.t5.save()
+        self.t6 = self.doc_class(first_name='Katie', last_name='Hogans', slug='katie', gpa=2.2,
+                                 email='katie@capless.com', hometown="Dayton", high_school='Southern')
+        self.t6.save()
+        self.t6 = self.doc_class(first_name='Kim', last_name='Hopkins', slug='kim', gpa=4.0,
+                                 email='kim@autogy.com', hometown="Charlotte", high_school='Hillside')
+        self.t6.save()
+        self.t7 = self.doc_class(first_name='Joe', last_name='Rogans', slug='joe', gpa=3.0,
+                                 email='joe@autogy.com', hometown="Pittsburgh", high_school='Riverside')
+        self.t7.save()
+
+    def test_contains(self):
+        qs = self.doc_class.objects().filter({'hometown__contains':'Du'})
+        self.assertEqual(2, len(qs))
+
+    def test_begins_with(self):
+        qs = self.doc_class.objects().filter({'first_name__begins':'K'})
+        self.assertEqual(2, len(qs))
+
+    def test_less_than(self):
+        qs = self.doc_class.objects().filter({'gpa__lt': 3})
+        self.assertEqual(2, len(qs))
+
+    def test_less_than_equal(self):
+        qs = self.doc_class.objects().filter({'gpa__lte': 3})
+        self.assertEqual(3, len(qs))
+
+    def test_greater_than(self):
+        qs = self.doc_class.objects().filter({'gpa__gt': decimal.Decimal(2.5)})
+        self.assertEqual(3, len(qs))
+
+    def test_greater_than_equal(self):
+        qs = self.doc_class.objects().filter({'gpa__gte': decimal.Decimal(2.5)})
+        self.assertEqual(4, len(qs))
+
+    def test_not_equal(self):
+        qs = self.doc_class.objects().filter({'gpa__ne': decimal.Decimal(2.5)})
+        self.assertEqual(4, len(qs))
+
+    def test_in(self):
+        qs = self.doc_class.objects().filter({'last_name__in': ('Rogans', 'Jenkins')})
+        self.assertEqual(3, len(qs))
+
+    def test_between(self):
+        qs = self.doc_class.objects().filter({'gpa__between': (2, 3)})
+        self.assertEqual(3, len(qs))
+
+    def test_attr_exist(self):
+        qs = self.doc_class.objects().filter({'country__attr_exists': True})
+        self.assertEqual(0, len(qs))
+        qs = self.doc_class.objects().filter({'gpa__attr_exists': True})
+        self.assertEqual(5, len(qs))
+
+    def test_not_attr_exist(self):
+        qs = self.doc_class.objects().filter({'country__attr_not_exists': True})
+        self.assertEqual(5, len(qs))
+        qs = self.doc_class.objects().filter({'gpa__attr_not_exists': True})
+        self.assertEqual(0, len(qs))
+
+    def test_attr_type(self):
+        qs = self.doc_class.objects().filter({'hometown__attr_type': 'S'})
+        self.assertEqual(5, len(qs))
+        qs = self.doc_class.objects().filter({'hometown__attr_type': 'N'})
+        self.assertEqual(0, len(qs))
+        qs = self.doc_class.objects().filter({'gpa__attr_type': 'N'})
+        self.assertEqual(5, len(qs))
 
 
 class DynamoIndexTestCase(DocbTestCase):
     doc_class = DynamoTestCustomIndex
 
     def setUp(self):
-        self.doc_class().flush_db()
-        self.db = self.doc_class.get_db()._dynamodb
+        super(DynamoIndexTestCase, self).setUp()
+        self.db = self.doc_class.get_db()
         self.t1 = self.doc_class(name='Goo and Sons', slug='goo-sons', gpa=3.2,
                                  email='goo@sons.com', city="Durham")
         self.t1.save()
-
-    def test_index_name_fail(self):
-        qs = self.doc_class.objects().filter({'city': 'Durham'})
-        with self.assertRaises(ValueError) as context:
-            list(qs)
-
-    @unittest.skip("no reliable way to check if an index is 'ACTIVE'")
-    def test_index_name_success(self):
-        self.check_index('city-index', 'city')
-        self.rename_index('city', 'city-index', 'custom-index')
-        self.check_index('custom-index', 'city')
-        qs = self.doc_class.objects().filter({'city': 'Durham'})
-        self.assertEqual(1, qs.count())
-        self.rename_index('city', 'custom-index', 'city-index')
-
-    def rename_index(self, attr_name, old_index_name, new_index_name):
-        index_schema = self.check_index(old_index_name, attr_name)
-        #index_schema = {'ProvisionedThroughput': {'ReadCapacityUnits':1000, 'WriteCapacityUnits': 1000}}
-        self.db.update(GlobalSecondaryIndexUpdates=[{'Delete': {'IndexName': old_index_name}}])
-        self.db.wait_until_exists()
-        time.sleep(3)
-        self.db.update(AttributeDefinitions=[{u'AttributeName': attr_name, u'AttributeType': u'S'}],
-            GlobalSecondaryIndexUpdates=[
-            {'Create': {'IndexName': new_index_name,
-                        'Projection': {'ProjectionType': 'ALL'},
-                        'ProvisionedThroughput': index_schema['ProvisionedThroughput'],
-                        'KeySchema': [{'KeyType': 'HASH', 'AttributeName': attr_name}]}}])
-        time.sleep(3)
 
     def check_index(self, index_name, attr_name):
         index_schema = self.db.global_secondary_indexes
@@ -254,10 +270,8 @@ class DynamoIndexTestCase(DocbTestCase):
                 index_info = index
                 detected = True
         self.assertTrue(detected)
-        #self.assertEqual(index_info['IndexStatus'], 'ACTIVE')
         self.assertEqual(index_info['KeySchema'][0]['AttributeName'], attr_name)
         return index_info
-
 
 
 if __name__ == '__main__':
