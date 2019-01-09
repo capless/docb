@@ -261,9 +261,11 @@ The chain filters feature is only available for Redis and S3/Redis backends.
 ```
 ## Table Deployment
 
-DocB features two ways to deploy tables to AWS (only one works with DynamoDB Local though).  
+DocB features two ways to deploy tables to AWS (only one works with DynamoDB Local though).
 
 ### Via CloudFormation
+
+This is the preferred method for deploying production and development workloads on AWS.
 
 ```python
 from docb.loading import DocbHandler
@@ -290,6 +292,8 @@ sam.publish('stack_name')
 ```
 
 ### Via Boto3/AWS API
+
+This method is used for our unit tests and we suggest using it for testing code locally (with Jupyter Notebooks and such). 
 
 ```python
 from docb.loading import DocbHandler
@@ -349,43 +353,12 @@ if you didn't specify `index_name` argument.**
 * **Projected attributes**: *All*.
 
 ### Use DynamoDB locally
-#### Run DynamoDB
-* with persistent storage `docker run -d -p 8000:8000 -v /tmp/data:/data/ dwmkerr/dynamodb -dbPath /data/`
 
-#### Configuration
-**Example:** loading.py
+Use the docker-compose file, Dockerfile, and the requirements.txt from the repo.
+
 ```python
-from docb.loading import DocbHandler
-
-
-handler = DocbHandler({
-    'dynamodb':{
-        'connection':{
-            'table':'school'
-        },
-        'config':{
-              'endpoint_url':'http://localhost:8000'
-            },
-        'documents':['docb.testcase.Student'],
-        'table_config':{
-            'write_capacity':2,
-            'read_capacity':3
-        }
-    }
-})
+docker-compose up
 ```
-
-#### Testing
-##### Run DynamoDB
-* in memory (best performance) `docker run -d -p 8000:8000 dwmkerr/dynamodb -inMemory`
-
-
-##### Setup environment variables.
-```bash
-export DYNAMO_TABLE_TEST='localtable'
-export DYNAMO_ENDPOINT_URL_TEST='http://127.0.0.1:8000'
-```
-
 
 ### Backup and Restore
 
