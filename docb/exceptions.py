@@ -21,5 +21,6 @@ class DocSaveError(Exception):
 class ResourceError(Exception):
     pass
 
+
 class ImproperlyConfigured(Exception):
     pass
