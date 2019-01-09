@@ -211,6 +211,19 @@ class BaseDocument(BaseSchema):
         self._dynamodb.delete_item(Key={'_id': self._data['_id'],
                                         '_doc_type': self._data['_doc_type']})
 
+    @classmethod
+    def get(cls, pk):
+        c = cls()
+        try:
+            obj = c.__class__(**c._dynamodb.get_item(Key={'_id':c.get_doc_id(pk),'_doc_type': cls.__name__})['Item'])
+        except KeyError:
+            try:
+                obj = c.__class__(
+                    **c._dynamodb.get_item(Key={'_id': pk, '_doc_type': cls.__name__})['Item'])
+            except KeyError:
+                raise QueryError('No {} with the pk of {} found.'.format(cls.__name__, pk))
+        return obj
+
     # CRUD Operations
     def save(self):
         doc = self.prep_doc()
