@@ -248,7 +248,7 @@ Full List of Conditions:
 - AttributeNotExists ``__attr_not_exists``
 
 ```python
->>>TestDocument.objects().filter({'no_subscriptions__gt':3})
+>>>TestDocumentTestDocument(name='Sally',is_active=False,no_subscriptions=6,gpa=3.0,state='VA')bjects().filter({'no_subscriptions__gt':3})
 [<TestDocument: Sally:ec640abfd6>]
 
 ```
@@ -277,6 +277,16 @@ The chain filters feature is only available for Redis and S3/Redis backends.
 [<TestDocument: Kev:ec640abfd6>]
 ```
 
+#### Bulk Save
+
+Bulk save documents with DynamoDB's batch writer.
+
+```python
+doc_list = [TestDocument(name='George',is_active=True,no_subscriptions=3,gpa=3.25,state='VA'),
+    TestDocument(name='Sally',is_active=False,no_subscriptions=6,gpa=3.0,state='VA')]
+    
+TestDocument().bulk_save(doc_list)
+```
 ## Property Types
 
 ### BaseProperty
