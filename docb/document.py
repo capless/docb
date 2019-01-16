@@ -243,13 +243,12 @@ class BaseDocument(BaseSchema):
                 raise ResourceError('Table doesn\'t exist.')
         self._data = doc
 
-    @classmethod
     def bulk_save(self, doc_list):
         prep_doc_obj_list = []
         with self._dynamodb.batch_writer() as batch:
             for i in doc_list:
-                doc_obj, doc = self.prepare_doc(i)
-                prep_doc_obj_list.append(doc_obj)
+                doc = i.prep_doc(create_pk=True)
+                prep_doc_obj_list.append(i)
                 batch.put_item(Item=doc)
         return prep_doc_obj_list
 
@@ -436,7 +435,7 @@ class BaseDocument(BaseSchema):
 
         return indexes
 
-    def prep_doc(self):
+    def prep_doc(self, create_pk=False):
         """
         This method Validates, gets the Python value, checks unique indexes,
         gets the db value, and then returns the prepared doc dict object.
@@ -453,6 +452,11 @@ class BaseDocument(BaseSchema):
             doc[key] = value
 
         doc['_doc_type'] = docb.utils.get_doc_type(self.__class__)
+        if create_pk:
+            doc['_id'] = self.create_pk(doc, return_pk=True)
+            for key, value in doc.items():
+                if type(value) == float:
+                    doc[key] = decimal.Decimal(str(value))
         return doc
 
     def check_unique(self, key, value):
@@ -471,11 +475,13 @@ class BaseDocument(BaseSchema):
     def get_class_name(cls):
         return cls.__name__
 
-    def create_pk(self, doc):
+    def create_pk(self, doc, return_pk=False):
         doc = doc.copy()
         doc['_date'] = str(datetime.datetime.now())
         doc['_uuid'] = str(uuid.uuid4())
         hash_pk = hashlib.md5(bytes(json.dumps(doc), 'utf-8')).hexdigest()[:10]
+        if return_pk:
+            return self.doc_id_string.format(doc_id=hash_pk, backend_id='dynamodb', class_name=self.get_class_name())
         self._set_pk(self.doc_id_string.format(doc_id=hash_pk,
                                                backend_id='dynamodb', class_name=self.get_class_name()))
 
