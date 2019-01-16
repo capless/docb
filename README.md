@@ -248,7 +248,7 @@ Full List of Conditions:
 - AttributeNotExists ``__attr_not_exists``
 
 ```python
->>>TestDocumentTestDocument(name='Sally',is_active=False,no_subscriptions=6,gpa=3.0,state='VA')bjects().filter({'no_subscriptions__gt':3})
+>>>TestDocument.objects().filter({'no_subscriptions__gt':3})
 [<TestDocument: Sally:ec640abfd6>]
 
 ```
