@@ -19,7 +19,7 @@ from valley.schema import BaseSchema
 
 import docb.properties
 import docb.utils
-from docb.exceptions import ResourceError, QueryError
+from docb.exceptions import ResourceError, QueryError, DocSaveError
 from .query import QueryManager
 
 CONDITIONS = {
@@ -236,11 +236,8 @@ class BaseDocument(BaseSchema):
             if type(value) == float:
                 doc[key] = decimal.Decimal(str(value))
 
-        try:
-            self._dynamodb.put_item(Item=doc)
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceNotFoundException':
-                raise ResourceError('Table doesn\'t exist.')
+        self._dynamodb.put_item(Item=doc)
+
         self._data = doc
 
     def bulk_save(self, doc_list):
@@ -445,11 +442,16 @@ class BaseDocument(BaseSchema):
         doc = self._data.copy()
         for key, prop in list(self._base_properties.items()):
             prop.validate(doc.get(key), key)
+            v = doc.get(key)
+
             raw_value = prop.get_python_value(doc.get(key))
             if prop.unique:
                 self.check_unique(key, raw_value)
-            value = prop.get_db_value(raw_value)
-            doc[key] = value
+            if v:
+                value = prop.get_db_value(raw_value)
+                doc[key] = value
+            else:
+                doc.pop(key)
 
         doc['_doc_type'] = docb.utils.get_doc_type(self.__class__)
         if create_pk:
