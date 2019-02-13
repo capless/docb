@@ -4,6 +4,16 @@ import docb.properties
 import docb.utils
 
 
+REPLICATION_GROUPS = [
+    'us-east-1',
+    'us-east-2',
+    'us-west-1',
+    'us-west-2',
+    'ap-southeast-1',
+    'eu-west-2'
+]
+
+
 class DocbHandler(object):
     """
     Example:
@@ -90,3 +100,16 @@ class DocbHandler(object):
     def build_cf_template(self, resource_name, table_name, db_label):
         return docb.utils.build_cf_template(
             self.build_cf_resource(resource_name,table_name,db_label))
+
+    def publish(self, stack_name, resource_name, table_name, db_label):
+        sam = self.build_cf_template(resource_name, table_name, db_label)
+        sam.publish(stack_name)
+
+    def create_global_table(self, table_name, replication_groups=REPLICATION_GROUPS):
+        boto3.client('dynamodb').create_global_table(
+            GlobalTableName=table_name,
+            ReplicationGroup=[
+                {'RegionName': i}
+                for i in replication_groups
+            ]
+        )

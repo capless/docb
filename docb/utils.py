@@ -5,12 +5,36 @@ import sammy as sm
 import valley
 
 
+BILLING_MODE_CHOICES = {
+    'PROVISIONED':'PROVISIONED',
+    'PAY_PER_REQUEST':'PAY_PER_REQUEST'
+}
+
+STREAM_VIEW_TYPE = {
+    'KEYS_ONLY': 'KEYS_ONLY',
+    'NEW_IMAGE': 'NEW_IMAGE',
+    'OLD_IMAGE': 'OLD_IMAGE',
+    'NEW_AND_OLD_IMAGES': 'NEW_AND_OLD_IMAGES'
+}
+
+SSE_TYPE_CHOICES = {
+    'AES256': 'AES256',
+    'KMS': 'KMS'
+}
+
+
 class TableConfig(valley.contrib.Schema):
-    write_capacity = valley.IntegerProperty(required=True)
-    read_capacity = valley.IntegerProperty(required=True)
+    billing_mode = valley.CharProperty(required=True, default_value='PROVISIONED', choices=BILLING_MODE_CHOICES)
+    write_capacity = valley.IntegerProperty()
+    read_capacity = valley.IntegerProperty()
     secondary_write_capacity = valley.IntegerProperty()
     secondary_read_capacity = valley.IntegerProperty()
     autoscaling = valley.BooleanProperty()
+    stream_enabled = valley.BooleanProperty()
+    stream_view_type = valley.CharProperty(default_value='NEW_AND_OLD_IMAGES', choices=STREAM_VIEW_TYPE)
+    sse_enabled = valley.BooleanProperty()
+    sse_type = valley.CharProperty(default_value='KMS', choices=SSE_TYPE_CHOICES)
+    kms_master_key_id = valley.CharProperty()
 
 
 class TableConnection(valley.contrib.Schema):
@@ -68,23 +92,43 @@ def build_cf_args(table_name, table_config, global_indexes, resource_name=None):
         'KeySchema':[{'AttributeName': '_doc_type', 'KeyType': 'HASH'},
                    {'AttributeName': '_id', 'KeyType': 'RANGE'}],
         'AttributeDefinitions':attr_defs,
-        'ProvisionedThroughput': {
+        'BillingMode': table_config.billing_mode
+    }
+    if table_config.billing_mode == 'PROVISIONED':
+        args['ProvisionedThroughput'] = {
             'ReadCapacityUnits': table_config.read_capacity,
             'WriteCapacityUnits': table_config.write_capacity
         }
-    }
+
+    if table_config.sse_enabled:
+        args['SSESpecification'] = {
+            'Enabled': True,
+            'SSEType': table_config.sse_type,
+        }
+        if table_config.kms_master_key_id:
+            args['SSESpecification']['KMSMasterKeyId'] = table_config.kms_master_key_id
+
+    if table_config.stream_enabled:
+        args['StreamSpecification'] = {
+            'StreamEnabled': True,
+            'StreamViewType': table_config.stream_view_type
+        }
     if len(global_indexes) > 0:
-        args['GlobalSecondaryIndexes'] = [
-            {
+        gi = []
+        for k, v in global_indexes:
+            gic = {
                 'IndexName': k, 'KeySchema': [
                 {'AttributeName': v['name'], 'KeyType': v['key_type']}],
                 'Projection': {'ProjectionType': 'ALL'},
-                'ProvisionedThroughput': {
-                    'ReadCapacityUnits': table_config.read_capacity,
-                    'WriteCapacityUnits': table_config.read_capacity}
             }
-            for k, v in global_indexes
-        ]
+            if table_config.billing_mode == 'PROVISIONED':
+                gic['ProvisionedThroughput'] = {
+                    'ReadCapacityUnits': table_config.read_capacity,
+                    'WriteCapacityUnits': table_config.read_capacity
+                }
+            gi.append(gic)
+        args['GlobalSecondaryIndexes'] = gi
+
     if resource_name:
         args['name'] = resource_name
     return args
