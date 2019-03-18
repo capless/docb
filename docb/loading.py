@@ -1,8 +1,9 @@
+import time
+
 import boto3
 import docb.document
 import docb.properties
 import docb.utils
-
 
 REPLICATION_GROUPS = [
     'us-east-1',
@@ -10,7 +11,7 @@ REPLICATION_GROUPS = [
     'us-west-1',
     'us-west-2',
     'ap-southeast-1',
-    'eu-west-2'
+    'eu-west-1'
 ]
 
 
@@ -33,6 +34,7 @@ class DocbHandler(object):
         }
     })
     """
+
     def __init__(self, config):
         self.config = config
         self.get_tables()
@@ -53,7 +55,7 @@ class DocbHandler(object):
             self._connections = dict()
             for db_label, db_info in self.config.items():
                 self._connections[db_label] = boto3.resource(
-                    'dynamodb',**db_info.get('config',{}))
+                    'dynamodb', **db_info.get('config', {}))
             return self._connections
 
     def get_db(self, db_label):
@@ -91,25 +93,51 @@ class DocbHandler(object):
         tc.validate()
         return tc
 
-    def build_cf_resource(self, resource_name, table_name, db_label):
+    def build_cf_resource(self, resource_name, table_name, db_label, global_table=False):
         table_config = self.validate_table_config(db_label)
+        if global_table:
+            table_config.stream_enabled = True
         global_indexes = self.get_index_names(db_label).items()
         return docb.utils.build_cf_resource(resource_name, table_name,
                                             table_config, global_indexes)
 
-    def build_cf_template(self, resource_name, table_name, db_label):
+    def build_cf_template(self, resource_name, table_name, db_label, global_table=False):
         return docb.utils.build_cf_template(
-            self.build_cf_resource(resource_name,table_name,db_label))
+            self.build_cf_resource(resource_name, table_name, db_label, global_table))
 
     def publish(self, stack_name, resource_name, table_name, db_label):
         sam = self.build_cf_template(resource_name, table_name, db_label)
         sam.publish(stack_name)
 
-    def create_global_table(self, table_name, replication_groups=REPLICATION_GROUPS):
-        boto3.client('dynamodb').create_global_table(
+    def publish_global(self, stackset_name, resource_name, table_name, db_label, replication_groups=REPLICATION_GROUPS,
+                       profile_name='default'):
+        """
+        Publishes the database in multiple regions via CloudFormation StackSets and creates an DynamoDB Global Table.
+        :param stackset_name: Desired CloudFormation StackSets
+        :param resource_name: Desired name of the DynamoDB Table in the CloudFormation Template
+        :param table_name: Desired name for the actual DynamoDB table
+        :param db_label: Name of the DB label in this DocbHandler that you want to deploy
+        :param replication_groups: List of AWS region short names that you want to deploy to in the CloudFormation
+        :param profile_name: AWS credentials set to use from the ~/.aws/credentials file
+        Stackset
+        :return: None
+        """
+        start_time = time.perf_counter()
+        sam = self.build_cf_template(resource_name, table_name, db_label, global_table=True)
+        sam.build_clients_resources(profile_name=profile_name)
+        sam.publish_global(stackset_name, replication_groups)
+
+        # Create Global Table
+        print('Creating global table.')
+        sess = boto3.Session(profile_name=profile_name)
+
+        dyndb = sess.client('dynamodb')
+        dyndb.create_global_table(
             GlobalTableName=table_name,
             ReplicationGroup=[
                 {'RegionName': i}
                 for i in replication_groups
             ]
         )
+        end_time = time.perf_counter()
+        print('Total Elapsed Time: {}'.format(end_time - start_time))
