@@ -110,7 +110,6 @@ def build_cf_args(table_name, table_config, global_indexes, resource_name=None):
 
     if table_config.stream_enabled:
         args['StreamSpecification'] = {
-            'StreamEnabled': True,
             'StreamViewType': table_config.stream_view_type
         }
     if len(global_indexes) > 0:
@@ -141,6 +140,6 @@ def build_cf_resource(resource_name, table_name, table_config, global_indexes):
 
 
 def build_cf_template(db_resource):
-    tmpl = sm.SAM(render_type='yaml')
+    tmpl = sm.CFT(render_type='yaml')
     tmpl.add_resource(db_resource)
     return tmpl
