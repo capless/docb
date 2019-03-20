@@ -447,7 +447,8 @@ class BaseDocument(BaseSchema):
             raw_value = prop.get_python_value(doc.get(key))
             if prop.unique:
                 self.check_unique(key, raw_value)
-            if v:
+
+            if v or v is False:
                 value = prop.get_db_value(raw_value)
                 doc[key] = value
             else:
