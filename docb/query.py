@@ -37,7 +37,7 @@ class QuerySetMixin(object):
     query_type = None
 
     def __init__(self, doc_class, q=None, parent_q=None, global_index=False, index_name=None, sort_attr=None,
-                 sort_reverse=False, limit=None):
+                 sort_reverse=False, limit=None, paginate_by=None, paginated=False, start_key=None):
         self.parent_q = parent_q
         self._result_cache = None
         self._doc_class = doc_class
@@ -45,6 +45,11 @@ class QuerySetMixin(object):
         self.sort_attr = sort_attr
         self.sort_reverse = sort_reverse
         self.limit = limit
+        self.paginated = paginated
+        self.last_evaluated_key = None
+        self.results = []
+        self.paginate_by = paginate_by
+        self.start_key = start_key
         self.global_index = global_index
         self.index_name = index_name
         self.evaluated = False
@@ -102,17 +107,20 @@ class QuerySetMixin(object):
 
 class QuerySet(QuerySetMixin):
 
-    def filter(self, q, sort_attr=None, sort_reverse=False, limit=None):
+    def filter(self, q, sort_attr=None, sort_reverse=False, limit=None, paginate_by=None, paginated=False, start_key=None):
         q.update({'_doc_type': self._doc_class.__name__})
-        return QuerySet(self._doc_class, q, self.q, sort_attr=sort_attr, sort_reverse=sort_reverse, limit=limit)
+        return QuerySet(self._doc_class, q, self.q, sort_attr=sort_attr, sort_reverse=sort_reverse, limit=limit,
+                        paginate_by=paginate_by, start_key=start_key, paginated=paginated)
 
-    def gfilter(self, q, index_name=None, sort_attr=None, sort_reverse=False, limit=None):
+    def gfilter(self, q, index_name=None, sort_attr=None, sort_reverse=False, limit=None, paginate_by=None,
+                paginated=False, start_key=None):
         return QuerySet(self._doc_class, q, self.q, global_index=True, index_name=index_name, sort_attr=sort_attr,
-                        sort_reverse=sort_reverse, limit=limit)
+                        sort_reverse=sort_reverse, limit=limit, paginate_by=paginate_by, paginated=paginated,
+                        start_key=start_key)
 
     def get(self, q):
         q.update({'_doc_type': self._doc_class.__name__})
-        qs = QuerySet(self._doc_class, q, self.q)
+        qs = QuerySet(self._doc_class, q, self.q, limit=1)
         if len(qs) > 1:
             raise QueryError(
                 'This query should return exactly ' \
@@ -122,10 +130,11 @@ class QuerySet(QuerySetMixin):
             raise QueryError('This query did not return a result.')
         return qs[0]
 
-    def all(self, sort_attr=None, sort_reverse=False, limit=None):
+    def all(self, sort_attr=None, sort_reverse=False, limit=None, paginate_by=None, paginated=False, start_key=None):
         return QuerySet(self._doc_class,
                         {'_doc_type': self._doc_class.__name__}, self.q, sort_attr=sort_attr,
-                        sort_reverse=sort_reverse, limit=limit)
+                        sort_reverse=sort_reverse, limit=limit, paginate_by=paginate_by, paginated=paginated,
+                        start_key=start_key)
 
     def evaluate(self):
         return self._doc_class().evaluate(self)

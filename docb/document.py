@@ -254,26 +254,123 @@ class BaseDocument(BaseSchema):
         return cls.query_manager(cls)
 
     # Indexing Methods
+    def get_more_docs(self, response, query_params, result):
+        query_params.update(
+            {'ExclusiveStartKey': response['LastEvaluatedKey']})
+        return self._query(query_params)
+
+    def _query(self, query_params):
+        return self._dynamodb.query(**query_params)
+
     def get_doc_list(self, filters):
         query_params = self.build_query(filters)
-        response = self._dynamodb.query(**query_params)
+        response = self._query(query_params)
         result = response['Items']
-        if filters.limit:
-            while 'LastEvaluatedKey' in response and len(result) < filters.limit:
-                result = self.get_more_docs(response, query_params, result)
-        else:
+        if 'LastEvaluatedKey' in response:
+            filters.last_evaluated_key = response['LastEvaluatedKey']
+        # Query with paginated = True and set limit
+        if not filters.paginated:
             while 'LastEvaluatedKey' in response:
-                result = self.get_more_docs(response, query_params, result)
+                current_count = len(result)
+                if filters.limit and current_count >= filters.limit:
+                    break
+                query_params = self.get_limit(filters, query_params, current_count=current_count)
+                response = self.get_more_docs(response, query_params, response)
+                result.extend(response['Items'])
+                try:
+                    filters.last_evaluated_key = response['LastEvaluatedKey']
+                except KeyError:
+                    pass
         if filters.sort_attr:
             return sorted(result, key=itemgetter(filters.sort_attr), reverse=filters.sort_reverse)
         return result
 
-    def get_more_docs(self, response, query_params, result):
-        query_params.update(
-            {'ExclusiveStartKey': response['LastEvaluatedKey']})
-        response = self._dynamodb.query(**query_params)
-        result.extend(response['Items'])
-        return result
+    def get_limit(self, filters, query_params, current_count=None):
+        """
+        Sets the Limit key in the query_params
+        :param filters: QuerySet object
+        :param query_params: Dict containing query parameters
+        :param current_count: Current count of results in the query
+        :return: query_params
+        """
+        limit = None
+        try:
+            if filters.limit > filters.paginate_by:
+                limit = filters.paginate_by
+            else:
+                limit = filters.limit
+        except TypeError:
+            if filters.limit:
+                limit = filters.limit
+            if filters.paginate_by:
+                limit = filters.paginate_by
+        if limit:
+            query_params['Limit'] = limit
+        if current_count and filters.limit:
+            to_go = filters.limit - current_count
+            if 0 < to_go < limit:
+                query_params['Limit'] = to_go
+        return query_params
+
+    def build_query_params(self, filter_expressions, key_condition_expressions, index_name, filters):
+        """
+        Returns a dictionary that will be used as the keyword arguments for a query.
+        :param filter_expressions: List of filter expressions (filter)
+        :param key_condition_expressions: List of key expressions (filter)
+        :param index_name: The index name we're using to query the DB
+        :param filters: This is the entire filter instance
+        :return: query_params (dict)
+        """
+        query_params = dict()
+        if filters.start_key:
+            query_params['ExclusiveStartKey'] = filters.start_key
+        if len(filter_expressions) > 0:
+            query_params['FilterExpression'] = self.add_expressions(filter_expressions)
+        if len(key_condition_expressions) > 0:
+            query_params['KeyConditionExpression'] = self.add_expressions(key_condition_expressions)
+        if index_name not in ('_doc_type-index', '_id-index', 'fuzzy'):
+            query_params['IndexName'] = index_name
+        query_params = self.get_limit(filters, query_params)
+        return query_params
+
+    def build_query(self, filters):
+        """
+        Build the query
+        :param filters: QuerySet object
+        :return: Query dict
+        """
+        filters_dict = filters.q
+        filter_expressions = list()
+        key_condition_expressions = list()
+        index_name, key_name, key_value = self.get_index_name(filters)
+
+        if index_name == 'fuzzy':
+            key_condition_expressions.append(CONDITIONS['eq'](Key('_doc_type'), filters_dict['_doc_type']))
+            filters_dict.pop('_doc_type')
+            prop_list = list(set(('_id', 'pk')) & filters_dict.keys())
+
+            if len(prop_list) > 0:
+                prop = '_id'
+                prop_name = prop_list[0]
+                if prop_name == '_id':
+                    v = filters_dict[prop_name]
+                if prop_name == 'pk':
+                    v = self.get_doc_id(filters_dict[prop_name])
+                key_condition_expressions.append(CONDITIONS['eq'](Key(prop), v))
+                filters_dict.pop(prop_name)
+        else:
+            key_condition_expressions.append(CONDITIONS['eq'](Key(key_name), key_value))
+            filters_dict.pop(key_name)
+
+        for k, v in filters_dict.items():
+            prop, cond = self.get_condition(k)
+            if issubclass(cond, (Between,)):
+                filter_expressions.append(cond(Attr(prop), *v))
+            elif issubclass(cond, (AttributeNotExists, AttributeExists)):
+                filter_expressions.append(cond(Attr(prop)))
+            else:
+                filter_expressions.append(cond(Attr(prop), v))
+        return self.build_query_params(filter_expressions, key_condition_expressions, index_name, filters)
 
     def add_expressions(self, expressions):
         if len(expressions) > 1:
@@ -314,65 +411,6 @@ class BaseDocument(BaseSchema):
             if prop in indexes and issubclass(cond, Equals):
                 return prop_obj.index_name or self.default_index_name.format(prop), prop, v
         raise QueryError('All gfilter queries must have a global secondary index that uses the Equals condition.')
-
-    def build_query_params(self, filter_expressions, key_condition_expressions, index_name, limit=None):
-        """
-        Returns a dictionary that will be used as the keyword arguments for a query.
-        :param filter_expressions: List of filter expressions (filter)
-        :param key_condition_expressions: List of key expressions (filter)
-        :param index_name: The index name we're using to query the DB
-        :param limit: This value limits the number of records returned
-        :return: query_params (dict)
-        """
-        query_params = dict()
-        if len(filter_expressions) > 0:
-            query_params['FilterExpression'] = self.add_expressions(filter_expressions)
-        if len(key_condition_expressions) > 0:
-            query_params['KeyConditionExpression'] = self.add_expressions(key_condition_expressions)
-        if index_name not in ('_doc_type-index', '_id-index', 'fuzzy'):
-            query_params['IndexName'] = index_name
-        if isinstance(limit, (float, int, decimal.Decimal)):
-            query_params['Limit'] = limit
-        return query_params
-
-    def build_query(self, filters):
-        """
-        Build the query
-        :param filters: QuerySet object
-        :return: Query dict
-        """
-        filters_dict = filters.q
-        filter_expressions = list()
-        key_condition_expressions = list()
-        index_name, key_name, key_value = self.get_index_name(filters)
-
-        if index_name == 'fuzzy':
-            key_condition_expressions.append(CONDITIONS['eq'](Key('_doc_type'), filters_dict['_doc_type']))
-            filters_dict.pop('_doc_type')
-            prop_list = list(set(('_id', 'pk')) & filters_dict.keys())
-
-            if len(prop_list) > 0:
-                prop = '_id'
-                prop_name = prop_list[0]
-                if prop_name == '_id':
-                    v = filters_dict[prop_name]
-                if prop_name == 'pk':
-                    v = self.get_doc_id(filters_dict[prop_name])
-                key_condition_expressions.append(CONDITIONS['eq'](Key(prop), v))
-                filters_dict.pop(prop_name)
-        else:
-            key_condition_expressions.append(CONDITIONS['eq'](Key(key_name), key_value))
-            filters_dict.pop(key_name)
-
-        for k, v in filters_dict.items():
-            prop, cond = self.get_condition(k)
-            if issubclass(cond, (Between,)):
-                filter_expressions.append(cond(Attr(prop), *v))
-            elif issubclass(cond, (AttributeNotExists, AttributeExists)):
-                filter_expressions.append(cond(Attr(prop)))
-            else:
-                filter_expressions.append(cond(Attr(prop), v))
-        return self.build_query_params(filter_expressions, key_condition_expressions, index_name, limit=filters.limit)
 
     #####################
     # Document Prep     #
