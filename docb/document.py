@@ -490,7 +490,10 @@ class BaseDocument(BaseSchema):
                 value = prop.get_db_value(raw_value)
                 doc[key] = value
             else:
-                doc.pop(key)
+                try:
+                    doc.pop(key)
+                except KeyError:
+                    pass
 
         doc['_doc_type'] = docb.utils.get_doc_type(self.__class__)
         if create_pk:

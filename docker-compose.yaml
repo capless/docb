@@ -5,9 +5,9 @@ services:
     restart: always
     build: .
     expose:
-      - "8001"
+      - "8028"
     ports:
-      - 8001:8001
+      - 8028:8001
 
     links:
       - dynamodb:dynamodb
@@ -21,9 +21,9 @@ services:
     image: instructure/dynamo-local-admin
     restart: always
     expose:
-      - "8000"
+      - "8027"
     ports:
-      - 8000:8000
+      - 8027:8000
     volumes:
       - dynamodata:/var/lib/dynamo
 
