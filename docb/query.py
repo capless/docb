@@ -120,7 +120,7 @@ class QuerySet(QuerySetMixin):
 
     def get(self, q):
         q.update({'_doc_type': self._doc_class.__name__})
-        qs = QuerySet(self._doc_class, q, self.q, limit=1)
+        qs = QuerySet(self._doc_class, q, self.q)
         if len(qs) > 1:
             raise QueryError(
                 'This query should return exactly ' \
