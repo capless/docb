@@ -35,7 +35,7 @@ pip install docb
 ```python
 from docb.loading import DocbHandler
 
-
+# Create Handler
 docb_handler = DocbHandler({
     'dynamodb':{
         'connection':{
